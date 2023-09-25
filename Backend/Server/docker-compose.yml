@@ -1,8 +1,8 @@
 services:
   vector-db:
     image: qdrant/qdrant:latest
-    ports:
-      - "6666:6666"
+    expose:
+      - "6333:6333"
     volumes:
       - ./data/qdrant:/qdrant/storage
     environment:
@@ -13,7 +13,7 @@ services:
     build: .
     depends_on:
       - vector-db
-    ports:
+    expose:
       - "8000:8000"
     environment:
        QDRANT_API_KEY: ${QDRANT_API_KEY}
