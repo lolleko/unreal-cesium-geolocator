@@ -1,25 +1,42 @@
 services:
   vector-db:
     image: qdrant/qdrant:latest
+    depends_on:
+      - nginx
     ports:
-      - "6333:6333"
+      - "6666:6666"
     volumes:
-      - ./qdrant_data:/qdrant/storage
-      - ./tls:/qdrant/tls
+      - ./data/qdrant:/qdrant/storage
     environment:
       QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY}
       QDRANT__SERVICE__MAX_REQUEST_SIZE_MB: 128
-      QDRANT__SERVICE__ENABLE_TLS: 1
-      QDRANT__TLS__CERT: ./tls/cert.pem
-      QDRANT__TLS__CERT_KEY: ./tls/key.pem
 
   inference-server:
     build: .
     depends_on:
       - vector-db
+      - nginx
     ports:
-      - "80:80"
+      - "8000:8000"
     environment:
        QDRANT_API_KEY: ${QDRANT_API_KEY}
 
+  nginx:
+    image: nginx:latest
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "6333:6333"
+    volumes:
+      - ./data/nginx:/etc/nginx/conf.d
+      - ./data/certbot/conf:/etc/letsencrypt
+      - ./data/certbot/www:/var/www/certbot
+    command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \"daemon off;\"'"
 
+  certbot:
+    image: certbot/certbot
+    volumes: 
+      - ./data/certbot/conf:/etc/letsencrypt
+      - ./data/certbot/www:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
