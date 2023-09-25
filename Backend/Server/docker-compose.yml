@@ -1,0 +1,23 @@
+services:
+  vector-db:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+    volumes:
+      - ./qdrant_data:/qdrant/storage
+      - ./qdrant_tls:/qdrant/tls
+    environment:
+      QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY}
+      QDRANT__SERVICE__MAX_REQUEST_SIZE_MB: 128
+      QDRANT__SERVICE__ENABLE_TLS: 1
+      QDRANT__TLS__CERT: ./tls/cert.pem
+      QDRANT__TLS__CERT_KEY: ./tls/key.pem
+
+  inference-server:
+    build: .
+    depends_on:
+      - vector-db
+    environment:
+       QDRANT_API_KEY: ${QDRANT_API_KEY}
+
+
