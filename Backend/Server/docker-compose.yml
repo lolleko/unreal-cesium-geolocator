@@ -5,7 +5,7 @@ services:
       - "6333:6333"
     volumes:
       - ./qdrant_data:/qdrant/storage
-      - ./qdrant_tls:/qdrant/tls
+      - ./tls:/qdrant/tls
     environment:
       QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY}
       QDRANT__SERVICE__MAX_REQUEST_SIZE_MB: 128
@@ -17,6 +17,8 @@ services:
     build: .
     depends_on:
       - vector-db
+    ports:
+      - "80:80"
     environment:
        QDRANT_API_KEY: ${QDRANT_API_KEY}
 

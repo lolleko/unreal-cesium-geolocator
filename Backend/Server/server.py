@@ -17,7 +17,7 @@ import torchvision.transforms as transforms
 from fastapi import FastAPI, Request, HTTPException
 
 qdrant_client = QdrantClient(
-    "localhost", port=6333, timeout=60, api_key=os.getenv("QDRANT_API_KEY")
+    "vector-db", port=6333, timeout=60, api_key=os.getenv("QDRANT_API_KEY")
 )
 
 model = torch.hub.load(
@@ -32,7 +32,6 @@ app = FastAPI()
 async def post_image2(request: Request):
     json_data = await request.json()
     limit = json_data["limit"]
-    # offset from data or 0
     offset = json_data.get("offset", 0)
 
     img = None
@@ -41,10 +40,12 @@ async def post_image2(request: Request):
         img = torch.from_numpy(image_1d.reshape((1, 3, 512, 512)))
     except Exception as _:
         return HTTPException(status_code=400, detail="Invalid image")
-    
+
     with torch.inference_mode():
+        print("Running Inference")
         descriptors: torch.FloatTensor = model(img)
 
+        print("Searching Vector Database")
         vector_result = qdrant_client.search(
             collection_name="geo-location",
             query_vector=descriptors[0].numpy(),
