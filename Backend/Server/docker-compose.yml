@@ -22,8 +22,7 @@ services:
        QDRANT_API_KEY: ${QDRANT_API_KEY}
 
   nginx:
-    image: nginx:latest
-    restart: unless-stopped
+    image: nginx
     ports:
       - "80:80"
       - "443:443"
