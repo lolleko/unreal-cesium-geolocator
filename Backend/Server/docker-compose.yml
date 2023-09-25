@@ -1,8 +1,6 @@
 services:
   vector-db:
     image: qdrant/qdrant:latest
-    depends_on:
-      - nginx
     ports:
       - "6666:6666"
     volumes:
@@ -15,7 +13,6 @@ services:
     build: .
     depends_on:
       - vector-db
-      - nginx
     ports:
       - "8000:8000"
     environment:
@@ -23,6 +20,9 @@ services:
 
   nginx:
     image: nginx
+    depends_on:
+      - vector-db
+      - inference-server
     ports:
       - "80:80"
       - "443:443"
