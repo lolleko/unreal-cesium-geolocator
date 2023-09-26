@@ -17,7 +17,7 @@ import torchvision.transforms as transforms
 from fastapi import FastAPI, Request, HTTPException
 
 qdrant_client = QdrantClient(
-    "vector-db", port=6333, timeout=60, api_key=os.getenv("QDRANT_API_KEY")
+    "vector-db", port=6333, timeout=60, api_key=os.getenv("QDRANT_API_KEY"), https=False
 )
 
 model = torch.hub.load(
