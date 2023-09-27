@@ -5,11 +5,26 @@
 #include "../WayGraph/MTWayGraph.h"
 #include "CesiumCartographicPolygon.h"
 #include "CoreMinimal.h"
+#include "Geolocator/WayGraph/MTChinesePostMan.h"
 #include "MTSample.h"
 #include "MTSamplerComponentBase.h"
 
 #include "MTWayGraphSamplerComponent.generated.h"
 
+USTRUCT()
+struct FMTStreetData
+{
+    GENERATED_BODY()
+
+    UPROPERTY()
+    FMTWayGraph Graph;
+
+    UPROPERTY()
+    TArray<FMTWayGraphPath> Paths;
+
+    UPROPERTY()
+    double TotalPathLength = 0.;
+};
 
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class GEOLOCATOR_API UMTWayGraphSamplerComponent : public UMTSamplerComponentBase
@@ -38,12 +53,10 @@ private:
 
     int32 EstimatedSampleCount;
     
-    FMTWayGraph Graph;
+    FMTStreetData StreetData;
     
-    TArray<TArray<int32>> PathsContainingAllEdges;
-
     int32 CurrentImageCount;
-
+    
     int32 CurrentPathIndex;
 
     int32 CurrentPathSegmentIndex;
@@ -78,9 +91,13 @@ private:
     TSet<FSampledLocationWithGraphEdgeID> SampledLocationsLSH;
 
     FMTOverPassQueryCompletionDelegate OverpassQueryCompletedDelegate;
+
+    void InitSamplingParameters();
     
     UFUNCTION()
     void OverpassQueryCompleted(const FOverPassQueryResult& Result, const bool bSuccess);
     
     TConstArrayView<int32> ViewCurrentPath();
+
+    FString GetStreetDataCacheFilePath() const;
 };

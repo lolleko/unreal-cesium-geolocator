@@ -7,43 +7,43 @@ double EMTWayToScale(const EMTWay& Way)
     constexpr auto NormalScale = 1.;
     switch (Way)
     {
-        case Motorway:
+        case EMTWay::Motorway:
             return NormalScale;
-        case Trunk:
+        case EMTWay::Trunk:
             return NormalScale / 2.;
-        case Primary:
+        case EMTWay::Primary:
             return NormalScale / 2.;
-        case Secondary:
+        case EMTWay::Secondary:
             return NormalScale / 2.;
-        case Tertiary:
+        case EMTWay::Tertiary:
             return NormalScale / 2.;
-        case Unclassified:
+        case EMTWay::Unclassified:
             return NormalScale / 3.;
-        case Residential:
+        case EMTWay::Residential:
             return NormalScale / 3.;
-        case Motorway_Link:
+        case EMTWay::Motorway_Link:
             return NormalScale / 3.;
-        case Trunk_Link:
+        case EMTWay::Trunk_Link:
             return NormalScale / 3.;
-        case Primary_Link:
+        case EMTWay::Primary_Link:
             return NormalScale / 3.;
-        case Secondary_Link:
+        case EMTWay::Secondary_Link:
             return NormalScale / 3.;
-        case Tertiary_Link:
+        case EMTWay::Tertiary_Link:
             return NormalScale / 3.;
-        case LivingStreet:
+        case EMTWay::LivingStreet:
             return NormalScale / 3;
-        case Pedestrian:
+        case EMTWay::Pedestrian:
             return NormalScale / 3.;
-        case Cycleway:
+        case EMTWay::Cycleway:
             return NormalScale / 3.5;
-        case Footway:
+        case EMTWay::Footway:
             return NormalScale / 3.5;
-        case Path:
+        case EMTWay::Path:
             return NormalScale / 3.5;
-        case Service:
+        case EMTWay::Service:
             return NormalScale / 3.5;
-        case Max:
+        case EMTWay::Max:
         default:
             check(false);
             return 0.;
@@ -97,8 +97,8 @@ void FMTWayGraph::ConnectNodes(const int32 Node1, const int32 Node2, const int32
         Ways.AddDefaulted();
     }
     
-    AdjacencyList[Node1].Add(Node2);
-    AdjacencyList[Node2].Add(Node1);
+    AdjacencyList[Node1].AdjacentNodes.Add(Node2);
+    AdjacencyList[Node2].AdjacentNodes.Add(Node1);
 
     EdgeData.Add(NodePairToEdgeIndex(Node1, Node2), {WayIndex});
 }
@@ -120,7 +120,7 @@ int32 FMTWayGraph::WayNum() const
 
 TConstArrayView<int32> FMTWayGraph::ViewNodesConnectedToNode(const int32 NodeIndex) const
 {
-    return AdjacencyList[NodeIndex];
+    return AdjacencyList[NodeIndex].AdjacentNodes;
 }
 
 FOverpassCoordinates FMTWayGraph::GetNodeLocation(const int32 NodeIndex) const
@@ -139,11 +139,11 @@ FMTWayGraph::GetNodeLocationUnreal(const int32 NodeIndex, const ACesiumGeorefere
 bool FMTWayGraph::AreNodesConnected(const int32 NodeIndex1, const int32 NodeIndex2) const
 {
     check(AdjacencyList.IsValidIndex(NodeIndex1));
-    if (AdjacencyList[NodeIndex1].Contains(NodeIndex2))
+    if (AdjacencyList[NodeIndex1].AdjacentNodes.Contains(NodeIndex2))
     {
-        check(AdjacencyList[NodeIndex2].Contains(NodeIndex1));
+        check(AdjacencyList[NodeIndex2].AdjacentNodes.Contains(NodeIndex1));
     }
-    return AdjacencyList[NodeIndex1].Contains(NodeIndex2);
+    return AdjacencyList[NodeIndex1].AdjacentNodes.Contains(NodeIndex2);
 }
 
 int32 FMTWayGraph::NodeNum() const

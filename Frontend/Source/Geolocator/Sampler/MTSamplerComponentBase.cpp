@@ -9,12 +9,12 @@
 #include "Engine/TextureRenderTarget2D.h"
 #include "Engine/TextureRenderTargetCube.h"
 #include "EngineUtils.h"
+#include "Geolocator/Interaction/MTPlayerPawn.h"
 #include "JsonDomBuilder.h"
 #include "MTSample.h"
 #include "MTSamplingFunctionLibrary.h"
 #include "MTSceneCaptureCube.h"
 #include "MTWayGraphSamplerConfig.h"
-#include "Geolocator/Interaction/MTPlayerPawn.h"
 
 void UMTSamplerComponentBase::BeginPlay()
 {
@@ -57,10 +57,10 @@ void UMTSamplerComponentBase::InitSampling()
 
     for (auto* Tileset : TActorRange<ACesium3DTileset>(GetWorld()))
     {
+        Tileset->SetShouldIgnorePlayerCamera(true);
         Tileset->PlayMovieSequencer();
     }
-
-
+    
     PanoramaCapture = GetWorld()->SpawnActor<AMTSceneCaptureCube>();
     PanoramaCapture->GetCaptureComponentCube()->TextureTarget =
         NewObject<UTextureRenderTargetCube>(this);
@@ -106,11 +106,16 @@ void UMTSamplerComponentBase::InitSampling()
     TEXT("metadata.json"));
     
     MetadataFilePath = SamplingMetadata;
-    bIsMetadataFileNew = true;
-
+    bIsFirstMetadataFileWrite = true;
+    
     if (!FPaths::FileExists(MetadataFilePath))
     {
         EnqueueFileWriteTask(FileHeader);
+    }
+    else
+    {
+        bIsFirstWriteToExistingMetadataFile = true;
+
     }
     
     GotoNextSampleStep(ENextSampleStep::FindNextSampleLocation);
@@ -218,8 +223,19 @@ void UMTSamplerComponentBase::CaptureSample()
     WaitForRenderThreadReadSurfaceAndWriteImages();
 
     WaitForMetadataWrites();
-    
+
     FMTSample Sample = CollectSampleMetadata();
+
+    const auto AbsoluteImageFilePath =
+    FPaths::ConvertRelativePathToFull(GetSessionDir(), Sample.ImagePath);
+    
+    // Assume we are resuming previous run and don't overwrite image or metadata
+    if (FPaths::FileExists(AbsoluteImageFilePath))
+    {
+        GotoNextSampleStep(ENextSampleStep::FindNextSampleLocation);
+        return;
+    }
+    
     Sample.ArtifactProbability = SampleArtifactProbability;
 
     if (FMath::IsNearlyEqual(SampleArtifactProbability, 1.))
@@ -229,13 +245,13 @@ void UMTSamplerComponentBase::CaptureSample()
     {
         ConsecutiveSamplesWithArtifact = 0;
     }
+    SamplesSinceLastTilesetRefresh++;
     
     WriteSampleMetadata(Sample);
 
-    const auto AbsoluteFileName =
-    FPaths::ConvertRelativePathToFull(GetSessionDir(), Sample.ImagePath);
+
     
-    EnqueueCapture({PanoramaCapture, AbsoluteFileName});
+    EnqueueCapture({PanoramaCapture, AbsoluteImageFilePath});
 
     if (!CaptureQueue.IsEmpty())
     {
@@ -286,13 +302,16 @@ void UMTSamplerComponentBase::CaptureSample()
         });
 
 
-    if (ConsecutiveSamplesWithArtifact >= 1000)
+    if (ConsecutiveSamplesWithArtifact > 500 || SamplesSinceLastTilesetRefresh > 5000)
     {
         ConsecutiveSamplesWithArtifact = 0;
-        for (auto* Tileset : TActorRange<ACesium3DTileset>(GetWorld()))
-        {
-            Tileset->RefreshTileset();
-        }
+        SamplesSinceLastTilesetRefresh = 0;
+        // for (auto* Tileset : TActorRange<ACesium3DTileset>(GetWorld()))
+        // {
+        //     GEngine->ForceGarbageCollection(true);
+        //     Tileset->RefreshTileset();
+        //     GEngine->ForceGarbageCollection(true);
+        // }
     }
     
     // Call Capture function on remaining samples
@@ -355,12 +374,13 @@ void UMTSamplerComponentBase::WriteSampleMetadata(const FMTSample& Sample)
     
     const auto SampleMetadataString = SampleObj.ToString<>();
     
-    const auto JSONString = bIsMetadataFileNew ? SampleMetadataString : TEXT(",") + SampleMetadataString;
+    const auto JSONString = bIsFirstMetadataFileWrite && !bIsFirstWriteToExistingMetadataFile ? SampleMetadataString : TEXT(",") + SampleMetadataString;
     EnqueueFileWriteTask(JSONString);
 
-    if (bIsMetadataFileNew)
+    if (bIsFirstMetadataFileWrite)
     {
-        bIsMetadataFileNew = false;
+        bIsFirstWriteToExistingMetadataFile = false;
+        bIsFirstMetadataFileWrite = false;
     }
 }
 

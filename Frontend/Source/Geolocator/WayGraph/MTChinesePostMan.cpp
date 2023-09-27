@@ -240,7 +240,7 @@ namespace
 }  // namespace
 
 
-TArray<TArray<int32>> FMTChinesePostMan::CalculatePathsThatContainAllEdges(
+TArray<FMTWayGraphPath> FMTChinesePostMan::CalculatePathsThatContainAllEdges(
     const FMTWayGraph& Graph,
     const ACesiumGeoreference* GeoRef)
 {
@@ -275,7 +275,7 @@ TArray<TArray<int32>> FMTChinesePostMan::CalculatePathsThatContainAllEdges(
         }
     }
 
-    TArray<TArray<int32>> Result;
+    TArray<FMTWayGraphPath> Result;
 
     struct FDijsktraContext
     {
@@ -376,56 +376,59 @@ TArray<TArray<int32>> FMTChinesePostMan::CalculatePathsThatContainAllEdges(
 
         // Pick a random node and calculate a euler Cycle for island
         const auto& IslandNodes = Islands[IslandIndex];
-        auto StartNode = IslandNodes[0];
-        //check(Graph.ViewNodesConnectedToNode(StartNode).Num() > 1);
-        
+        if(IslandNodes.Num() > 1)
         {
-            TRACE_CPUPROFILER_EVENT_SCOPE(Validation);
-            // Validate euler path & that each node exists as start node
-            for (const auto& IslandNode : IslandNodes)
+            auto StartNode = IslandNodes[0];
+            //check(Graph.ViewNodesConnectedToNode(StartNode).Num() > 1);
+            
             {
-                int32 NodeDegree = 0;
-                for (const auto& ConnectedNode : Graph.ViewNodesConnectedToNode(IslandNode))
+                TRACE_CPUPROFILER_EVENT_SCOPE(Validation);
+                // Validate euler path & that each node exists as start node
+                for (const auto& IslandNode : IslandNodes)
                 {
-                    ensure(
-                        Graph.NodePairToEdgeIndex(IslandNode, ConnectedNode) ==
-                        Graph.NodePairToEdgeIndex(ConnectedNode, IslandNode));
-                    ensure(Graph.AreNodesConnected(IslandNode, ConnectedNode));
-                    ensure(Graph.AreNodesConnected(ConnectedNode, IslandNode));
+                    int32 NodeDegree = 0;
+                    for (const auto& ConnectedNode : Graph.ViewNodesConnectedToNode(IslandNode))
+                    {
+                        ensure(
+                            Graph.NodePairToEdgeIndex(IslandNode, ConnectedNode) ==
+                            Graph.NodePairToEdgeIndex(ConnectedNode, IslandNode));
+                        ensure(Graph.AreNodesConnected(IslandNode, ConnectedNode));
+                        ensure(Graph.AreNodesConnected(ConnectedNode, IslandNode));
 
-                    const auto EdgeIndex = Graph.NodePairToEdgeIndex(IslandNode, ConnectedNode);
-                    NodeDegree += EdgeCounts[EdgeIndex];
+                        const auto EdgeIndex = Graph.NodePairToEdgeIndex(IslandNode, ConnectedNode);
+                        NodeDegree += EdgeCounts[EdgeIndex];
+                    }
+
+                    FString DbgNeighbourString = TEXT("");
+                    for (const int32 Neighbour : Graph.ViewNodesConnectedToNode(IslandNode))
+                    {
+                        DbgNeighbourString += FString::FromInt(Neighbour) + TEXT(",");
+                    }
+                    
+                    ensureAlwaysMsgf(NodeDegree % 2 == 0, TEXT("Node = %d, NodeDegree = %d, ConnectedNodes = %d, Neighbours = %s, StartNode = %d"), IslandNode, NodeDegree, Graph.ViewNodesConnectedToNode(IslandNode).Num(), *DbgNeighbourString, StartNode);
+                }
+            }
+            auto& NextCycle = Result.Emplace_GetRef();
+            FindEulerPath(Graph, StartNode, EdgeCounts, NextCycle.Nodes);
+
+            {
+                TRACE_CPUPROFILER_EVENT_SCOPE(Validation);
+
+                check(NextCycle.Nodes.Num() > 1);
+                check(NextCycle.Nodes.Num() >= IslandNodes.Num());
+
+                TRACE_CPUPROFILER_EVENT_SCOPE(Validation);
+                // Validate euler path
+                for (const auto& IslandNode : IslandNodes)
+                {
+                    ensure(NextCycle.Nodes.Contains(IslandNode));
                 }
 
-                FString DbgNeighbourString = TEXT("");
-                for (const int32 Neighbour : Graph.ViewNodesConnectedToNode(IslandNode))
+                for (int32 I = 0; I < NextCycle.Nodes.Num() - 1; ++I)
                 {
-                    DbgNeighbourString += FString::FromInt(Neighbour) + TEXT(",");
+                    ensureMsgf(Graph.AreNodesConnected(NextCycle.Nodes[I + 1], NextCycle.Nodes[I]), TEXT("I == %d; NextCycle.Num() == %d"), I, NextCycle.Nodes.Num());
+                    ensureMsgf(Graph.AreNodesConnected(NextCycle.Nodes[I], NextCycle.Nodes[I + 1]), TEXT("I == %d; NextCycle.Num() == %d"), I, NextCycle.Nodes.Num());
                 }
-                
-                ensureAlwaysMsgf(NodeDegree % 2 == 0, TEXT("Node = %d, NodeDegree = %d, ConnectedNodes = %d, Neighbours = %s, StartNode = %d"), IslandNode, NodeDegree, Graph.ViewNodesConnectedToNode(IslandNode).Num(), *DbgNeighbourString, StartNode);
-            }
-        }
-        auto& NextCycle = Result.Emplace_GetRef();
-        FindEulerPath(Graph, StartNode, EdgeCounts, NextCycle);
-
-        {
-            TRACE_CPUPROFILER_EVENT_SCOPE(Validation);
-
-            check(NextCycle.Num() > 1);
-            check(NextCycle.Num() >= IslandNodes.Num());
-
-            TRACE_CPUPROFILER_EVENT_SCOPE(Validation);
-            // Validate euler path
-            for (const auto& IslandNode : IslandNodes)
-            {
-                ensure(NextCycle.Contains(IslandNode));
-            }
-
-            for (int32 I = 0; I < NextCycle.Num() - 1; ++I)
-            {
-                ensureMsgf(Graph.AreNodesConnected(NextCycle[I + 1], NextCycle[I]), TEXT("I == %d; NextCycle.Num() == %d"), I, NextCycle.Num());
-                ensureMsgf(Graph.AreNodesConnected(NextCycle[I], NextCycle[I + 1]), TEXT("I == %d; NextCycle.Num() == %d"), I, NextCycle.Num());
             }
         }
     }

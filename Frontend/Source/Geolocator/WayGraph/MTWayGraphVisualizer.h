@@ -2,13 +2,12 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "CesiumCartographicPolygon.h"
-
+#include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
-
 #include "Geolocator/OSM/MTOverpassSchema.h"
 #include "Geolocator/WayGraph/MTWayGraph.h"
+#include "MTChinesePostMan.h"
 
 #include "MTWayGraphVisualizer.generated.h"
 
@@ -44,7 +43,7 @@ private:
 
     FMTWayGraph WayGraph;
 
-    TArray<TArray<int32>> PathsContainingAllEdges;
+    TArray<FMTWayGraphPath> PathsContainingAllEdges;
 
     int32 EulerAnimationCurrentPathIndex = 0;
     int32 EulerAnimationCurrentNodeIndex = 0;

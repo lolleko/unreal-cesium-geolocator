@@ -5,12 +5,23 @@
 #include "CoreMinimal.h"
 #include "MTWayGraph.h"
 
+#include "MTChinesePostMan.generated.h"
+
+USTRUCT()
+struct FMTWayGraphPath
+{
+    GENERATED_BODY()
+    
+    UPROPERTY()
+    TArray<int32> Nodes;
+};
+
 /**
  *
  */
 class GEOLOCATOR_API FMTChinesePostMan
 {
 public:
-    static TArray<TArray<int32>>
+    static TArray<FMTWayGraphPath>
     CalculatePathsThatContainAllEdges(const FMTWayGraph& Graph, const ACesiumGeoreference* GeoRef);
 };

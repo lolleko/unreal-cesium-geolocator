@@ -87,7 +87,7 @@ protected:
     bool ShouldSampleOnBeginPlay() const;
 
     FString GetSessionDir() const;
-    
+
 private:
     UPROPERTY()
     TObjectPtr<AMTSceneCaptureCube> PanoramaCapture;
@@ -110,6 +110,8 @@ private:
 
     int32 ConsecutiveSamplesWithArtifact = 0;
 
+    int32 SamplesSinceLastTilesetRefresh = 0;
+
     TArray<FMTCaptureImagePathPair> CaptureQueue;
 
     FRenderCommandFence CaptureFence;
@@ -118,7 +120,9 @@ private:
 
     FString MetadataFilePath;
 
-    bool bIsMetadataFileNew = true;
+    bool bIsFirstWriteToExistingMetadataFile = false;
+
+    bool bIsFirstMetadataFileWrite = true;
 
     TFuture<void> FileAppendWriterWorkerFuture;
 

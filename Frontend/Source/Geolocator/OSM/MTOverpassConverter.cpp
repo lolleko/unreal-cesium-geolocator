@@ -77,7 +77,7 @@ namespace MTOverpass
                 
                 const auto WayName = Element.Tags.Contains("name") ? Element.Tags["name"] : FString();
                 const auto WayType = Element.Tags["highway"];
-                const auto WayKind = WayStringToEnum(WayType) != -1 ? WayStringToEnum(WayType) : Unclassified;
+                const auto WayKind = static_cast<int32>(WayStringToEnum(*WayType)) != -1 ? WayStringToEnum(WayType) : EMTWay::Unclassified;
 
                 if (!OSMWayNameToWayIndex.Contains(WayName))
                 {
@@ -87,7 +87,7 @@ namespace MTOverpass
                 }
 
                 const auto WayIndex = OSMWayNameToWayIndex[WayName];
-                if (WayKind != Unclassified && Result.GetWayKind(WayIndex) == Unclassified)
+                if (WayKind != EMTWay::Unclassified && Result.GetWayKind(WayIndex) == EMTWay::Unclassified)
                 {
                     Result.UpdateWayKind(WayIndex, WayKind);
                 }

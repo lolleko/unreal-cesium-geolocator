@@ -6,9 +6,12 @@
 #include "CoreMinimal.h"
 #include "Geolocator/OSM/MTOverpassSchema.h"
 
+#include "MTWayGraph.generated.h"
+
 UENUM()
-enum EMTWay
+enum class EMTWay : int32
 {
+    None = INDEX_NONE,
     Motorway,
     Trunk,
     Primary,
@@ -39,18 +42,49 @@ enum class EMTEdgeDirection
     Reverse = -1
 };
 
+USTRUCT()
+struct FMTWayGraphNode
+{
+    GENERATED_BODY()
+    
+    UPROPERTY()
+    FOverpassCoordinates Coords;
+};
+
+USTRUCT()
+struct FMTWayGraphEdge
+{
+    GENERATED_BODY()
+    
+    UPROPERTY()
+    int32 WayIndex;
+};
+
+USTRUCT()
+struct FMTWayGraphWay
+{
+    GENERATED_BODY()
+    
+    UPROPERTY()
+    FString Name;
+    UPROPERTY()
+    EMTWay Kind;
+};
+
+USTRUCT()
+struct FMTWayGraphAdjacentNodesArrayWrapper
+{
+    GENERATED_BODY()
+    
+    UPROPERTY()
+    TArray<int32> AdjacentNodes;
+};
+
+USTRUCT()
 struct FMTWayGraph
 {
-    struct FNode
-    {
-        FOverpassCoordinates Coords;
-    };
-
-    struct FEdge
-    {
-        int32 WayIndex;
-    };
-
+    GENERATED_BODY()
+    
     int64 NodePairToEdgeIndex(const int32 Node1, const int32 Node2) const;
 
     int32 AddWay(const FString& Name, const EMTWay Kind);
@@ -82,16 +116,17 @@ struct FMTWayGraph
     int32 NodeNum() const;
 
 private:
-    TArray<FNode> Nodes;
-    TArray<TArray<int32, TInlineAllocator<4>>> AdjacencyList;
-    TMap<int64, FEdge> EdgeData;
+    UPROPERTY()
+    TArray<FMTWayGraphNode> Nodes;
 
-    struct FMTWay
-    {
-        FString Name;
-        EMTWay Kind;
-    };
-    TArray<FMTWay> Ways;
+    UPROPERTY()
+    TArray<FMTWayGraphAdjacentNodesArrayWrapper> AdjacencyList;
+    
+    UPROPERTY()
+    TMap<int64, FMTWayGraphEdge> EdgeData;
+    
+    UPROPERTY()
+    TArray<FMTWayGraphWay> Ways;
 
     friend void DrawDebugStreetGraph(
         const UWorld* World,

@@ -156,11 +156,11 @@ void AMTWayGraphVisualizer::ShowEulerTour()
     FVector ZOffset = FVector::ZeroVector;
     for (int32 PathIndex = 0; PathIndex < PathsContainingAllEdges.Num(); ++PathIndex)
     {
-        for (int32 PathNodeIndex = 0; PathNodeIndex < PathsContainingAllEdges[PathIndex].Num() - 1;
+        for (int32 PathNodeIndex = 0; PathNodeIndex < PathsContainingAllEdges[PathIndex].Nodes.Num() - 1;
              ++PathNodeIndex)
         {
-            const auto Node1 = PathsContainingAllEdges[PathIndex][PathNodeIndex];
-            const auto Node2 = PathsContainingAllEdges[PathIndex][PathNodeIndex + 1];
+            const auto Node1 = PathsContainingAllEdges[PathIndex].Nodes[PathNodeIndex];
+            const auto Node2 = PathsContainingAllEdges[PathIndex].Nodes[PathNodeIndex + 1];
 
             const auto EdgeIndex = WayGraph.NodePairToEdgeIndex(Node1, Node2);
             const auto EdgeWayIndex = 0;  // WayGraph.GetEdgeWay(EdgeIndex);
@@ -184,7 +184,7 @@ void AMTWayGraphVisualizer::ShowEulerTour()
 
             const auto ColorRange = FMath::GetRangePct(
                 0.,
-                static_cast<double>(PathsContainingAllEdges[PathIndex].Num() - 1),
+                static_cast<double>(PathsContainingAllEdges[PathIndex].Nodes.Num() - 1),
                 static_cast<double>(PathNodeIndex));
             const auto StreetColor = FLinearColor(2.0f * ColorRange, 2.0f * (1 - ColorRange), 0);
 
@@ -248,7 +248,7 @@ void AMTWayGraphVisualizer::ShowBoundary()
 void AMTWayGraphVisualizer::AddNextEulerTourMesh()
 {
     for (int32 I = 0; EulerAnimationCurrentNodeIndex <
-                          PathsContainingAllEdges[EulerAnimationCurrentPathIndex].Num() - 1 &&
+                          PathsContainingAllEdges[EulerAnimationCurrentPathIndex].Nodes.Num() - 1 &&
                       I < 16;
          ++I)
     {
@@ -258,8 +258,8 @@ void AMTWayGraphVisualizer::AddNextEulerTourMesh()
         const auto MeshSizeInX = StaticMeshBounds.BoxExtent.Dot(FVector::XAxisVector) * 2.;
 
         const auto Node1 =
-            PathsContainingAllEdges[EulerAnimationCurrentPathIndex][EulerAnimationCurrentNodeIndex];
-        const auto Node2 = PathsContainingAllEdges[EulerAnimationCurrentPathIndex]
+            PathsContainingAllEdges[EulerAnimationCurrentPathIndex].Nodes[EulerAnimationCurrentNodeIndex];
+        const auto Node2 = PathsContainingAllEdges[EulerAnimationCurrentPathIndex].Nodes
                                                   [EulerAnimationCurrentNodeIndex + 1];
 
         const auto EdgeIndex = WayGraph.NodePairToEdgeIndex(Node1, Node2);
@@ -280,7 +280,7 @@ void AMTWayGraphVisualizer::AddNextEulerTourMesh()
 
         const auto ColorRange = FMath::GetRangePct(
             0.,
-            static_cast<double>(PathsContainingAllEdges[EulerAnimationCurrentPathIndex].Num() - 1),
+            static_cast<double>(PathsContainingAllEdges[EulerAnimationCurrentPathIndex].Nodes.Num() - 1),
             static_cast<double>(EulerAnimationCurrentNodeIndex));
         const auto StreetColor = FLinearColor(2.0f * ColorRange, 2.0f * (1 - ColorRange), 0);
 
@@ -293,7 +293,7 @@ void AMTWayGraphVisualizer::AddNextEulerTourMesh()
     }
 
     if (EulerAnimationCurrentNodeIndex >=
-        PathsContainingAllEdges[EulerAnimationCurrentPathIndex].Num() - 1)
+        PathsContainingAllEdges[EulerAnimationCurrentPathIndex].Nodes.Num() - 1)
     {
         EulerAnimationCurrentNodeIndex = 0;
         EulerAnimationCurrentPathIndex++;

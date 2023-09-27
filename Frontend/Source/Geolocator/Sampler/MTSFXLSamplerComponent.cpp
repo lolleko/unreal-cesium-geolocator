@@ -49,6 +49,7 @@ void UMTSFXLSamplerComponent::BeginPlay()
 
             const auto AbsoluteFileName =
             FPaths::Combine(GetSessionDir(), "Images", Locations[I].Path);
+            
             if (FPaths::FileExists(AbsoluteFileName))
             {
                 Locations.RemoveAtSwap(I);
