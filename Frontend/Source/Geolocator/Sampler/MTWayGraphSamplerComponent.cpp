@@ -127,6 +127,26 @@ TOptional<FTransform> UMTWayGraphSamplerComponent::SampleNextLocation()
         SampledLocationsLSH.Add({PrevSampleLocationDuplicationGrid, CurrentWayIndex});
         SampledLocationsLSH.Add({SampleLocationDuplicationGrid, PrevWayIndex});
 
+        // TODO deduplicate with CollectSampleMetadata
+        FString SampleName = FString::Format(
+            TEXT("{0}-{1}-{2}-{3}"),
+            {FMath::RoundToInt64(CurrentSampleLocation.X * 1000),
+             FMath::RoundToInt64(CurrentSampleLocation.Y * 1000),
+             FMath::RoundToInt64(CurrentSampleLocation.Z * 1000),
+             CurrentWayIndex});
+
+        const auto RelativeFileName =
+            FPaths::Combine("./Images", FString::Format(TEXT("{0}.jpg"), {SampleName}));
+
+        const auto AbsoluteImageFilePath =
+            FPaths::ConvertRelativePathToFull(GetSessionDir(), RelativeFileName);
+
+        // Assume we are resuming previous run and don't overwrite image or metadata
+        if (FPaths::FileExists(AbsoluteImageFilePath))
+        {
+            return {};
+        }
+
         return {FTransform(CurrentEdgeDir, CurrentSampleLocation)};
     }
 }
@@ -218,7 +238,7 @@ FMTSample UMTWayGraphSamplerComponent::CollectSampleMetadata()
     const auto HeadingAngle = FRotator::ClampAxis(EastSouthUp.Yaw);
 
     const auto StreetName = StreetData.Graph.GetWayName(CurrentWayIndex);
-    
+
     // We explicilty use the location calculated from SampleNextLocation
     // and not long lat above or current position after adjustments
     // this will ensure we have a consistent location for the same sample across multiple runs

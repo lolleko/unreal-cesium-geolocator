@@ -1,0 +1,30 @@
+name: ue-geolocator
+channels:
+  - conda-forge
+  - pytorch
+  - nvidia
+dependencies:
+  - python=3.9.12
+  - numpy
+  - utm
+  - pillow
+#  - cudatoolkit=11.7
+  - nvidia::cuda=11.7
+  - pytorch=2.0.1 #=1.13.0
+  - pytorch-cuda=11.7
+  - torchvision
+  - torchaudio
+  - tqdm
+  - pandas
+  - pip
+  - kornia
+  - opencv
+  - dataclass-wizard
+  - fastapi
+  - uvicorn
+  - pip:
+    - kornia_rs
+    - kornia_moons
+    - piexif
+    - onnxruntime-gpu==1.15.1
+    - qdrant-client

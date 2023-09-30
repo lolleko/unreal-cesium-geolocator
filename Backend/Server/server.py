@@ -41,18 +41,23 @@ async def post_image2(request: Request):
     except Exception as _:
         return HTTPException(status_code=400, detail="Invalid image")
 
+    print("Searchin in region: ", json_data['regions'])
+
     with torch.inference_mode():
         print("Running Inference")
         descriptors: torch.FloatTensor = model(img)
 
         print("Searching Vector Database")
         vector_result = qdrant_client.search(
-            collection_name="geo-location",
+            collection_name="iccv-demo",
             query_vector=descriptors[0].numpy(),
             query_filter=models.Filter(
                 must=[
                     models.FieldCondition(
                         key="IsActive", match=models.MatchValue(value=True)
+                    ),
+                    models.FieldCondition(
+                        key="Region", match=models.MatchAny(any=json_data['regions'])
                     ),
                 ]
             ),

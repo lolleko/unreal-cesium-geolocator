@@ -72,6 +72,7 @@ TArray<FMTSample> UMTInteractionFunctionLibrary::ResultsToSampleArray(const FStr
 
         Sample.HeadingAngle = PayloadObject->GetNumberField(TEXT("HeadingAngle")) - 75;
         auto LonLat = PayloadObject->GetObjectField(TEXT("LonLat"));
+        Sample.Region = PayloadObject->GetStringField(TEXT("Region"));
 
         Sample.LonLatAltitude = FVector(
             LonLat->GetNumberField(TEXT("lon")),
@@ -79,6 +80,8 @@ TArray<FMTSample> UMTInteractionFunctionLibrary::ResultsToSampleArray(const FStr
             PayloadObject->GetNumberField(TEXT("Altitude")));
 
         Sample.Score = Result->AsObject()->GetNumberField(TEXT("score"));
+
+        Sample.ImagePath = PayloadObject->GetStringField(TEXT("AbsoluteImagePath"));
 
         Samples.Add(Sample);
     }
@@ -314,7 +317,7 @@ void UMTCapturePreviewImageAction::Activate()
                                     }
                                 });
                         },
-                        0.1,
+                        3,
                         false);
                 });
         });

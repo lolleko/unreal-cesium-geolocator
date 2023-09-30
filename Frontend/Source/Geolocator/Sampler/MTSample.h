@@ -34,4 +34,7 @@ struct GEOLOCATOR_API FMTSample
     // Only present during inference
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     double Score;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    FString Region;
 };
