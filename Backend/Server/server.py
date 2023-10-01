@@ -43,26 +43,36 @@ async def post_image2(request: Request):
 
     print("Searchin in region: ", json_data['regions'])
 
-    with torch.inference_mode():
-        print("Running Inference")
-        descriptors: torch.FloatTensor = model(img)
+    try:
+        with torch.inference_mode():
+            print("Running Inference")
+            descriptors: torch.FloatTensor = model(img)
 
-        print("Searching Vector Database")
-        vector_result = qdrant_client.search(
-            collection_name="iccv-demo-eigen",
-            query_vector=descriptors[0].numpy(),
-            query_filter=models.Filter(
-                must=[
-                    models.FieldCondition(
-                        key="IsActive", match=models.MatchValue(value=True)
-                    ),
-                    models.FieldCondition(
-                        key="Region", match=models.MatchAny(any=json_data['regions'])
-                    ),
-                ]
-            ),
-            offset=offset,
-            limit=limit,
-        )
+            print("Searching Vector Database")
+            vector_result = qdrant_client.search(
+                collection_name="iccv-demo-eigen",
+                query_vector=descriptors[0].numpy(),
+                query_filter=models.Filter(
+                    must=[
+                        models.FieldCondition(
+                            key="IsActive", match=models.MatchValue(value=True)
+                        ),
+                        models.FieldCondition(
+                            key="Region", match=models.MatchAny(any=json_data['regions'])
+                        ),
+                    ]
+                ),
+                search_params=models.SearchParams(
+                    hnsw_ef=512,
+                    quantization=models.QuantizationSearchParams(
+                        rescore=True
+                    )
+                ),
+                offset=offset,
+                limit=limit,
+            )
 
-        return {"result": vector_result}
+            return {"result": vector_result}
+    except Exception as _:
+        return HTTPException(status_code=500, detail="Internal Server Error")
+

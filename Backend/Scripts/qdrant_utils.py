@@ -16,7 +16,7 @@ def qdrant_create_collection(client: QdrantClient, collection_name: str):
             collection_name=collection_name,
             vectors_config=VectorParams(size=512, distance=Distance.EUCLID, on_disk=True),
             on_disk_payload=True,
-            hnsw_config=models.HnswConfigDiff(on_disk=True, m=32),
+            hnsw_config=models.HnswConfigDiff(on_disk=True, m=32, ef_construction=256),
             optimizers_config=models.OptimizersConfigDiff(
                 max_optimization_threads=0
             )
