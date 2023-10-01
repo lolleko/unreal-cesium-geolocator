@@ -101,9 +101,9 @@ if __name__ == "__main__":
     print(f"Loading dataset from {args.dataset} into {args.db_collection_name}")
     load_images_into_db(load_dataset(args.dataset), model, qdrant_client, args.db_collection_name, args.region_tag)
 
-    # qdrant_client.update_collection(
-    #     collection_name=args.db_collection_name,
-    #     optimizer_config=models.OptimizersConfigDiff(
-    #         indexing_threshold=20000
-    #     )
-    # )
+    qdrant_client.update_collection(
+        collection_name=args.db_collection_name,
+        optimizer_config=models.OptimizersConfigDiff(
+            indexing_threshold=20000
+        )
+    )

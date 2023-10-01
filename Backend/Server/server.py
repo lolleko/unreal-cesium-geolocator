@@ -21,7 +21,7 @@ qdrant_client = QdrantClient(
 )
 
 model = torch.hub.load(
-    "gmberton/cosplace", "get_trained_model", backbone="ResNet50", fc_output_dim=512
+    "gmberton/eigenplaces", "get_trained_model", backbone="ResNet50", fc_output_dim=512
 )
 model.eval()
 
@@ -49,7 +49,7 @@ async def post_image2(request: Request):
 
         print("Searching Vector Database")
         vector_result = qdrant_client.search(
-            collection_name="iccv-demo",
+            collection_name="iccv-demo-eigen",
             query_vector=descriptors[0].numpy(),
             query_filter=models.Filter(
                 must=[
