@@ -81,7 +81,7 @@ TArray<FMTSample> UMTInteractionFunctionLibrary::ResultsToSampleArray(const FStr
 
         Sample.Score = Result->AsObject()->GetNumberField(TEXT("score"));
 
-        Sample.ImagePath = PayloadObject->GetStringField(TEXT("AbsoluteImagePath"));
+        Sample.AbsoluteImagePath = PayloadObject->GetStringField(TEXT("AbsoluteImagePath"));
 
         Samples.Add(Sample);
     }

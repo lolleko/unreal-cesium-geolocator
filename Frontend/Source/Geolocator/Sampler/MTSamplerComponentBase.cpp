@@ -5,6 +5,7 @@
 #include "Camera/CameraComponent.h"
 #include "Cesium3DTileset.h"
 #include "CesiumCameraManager.h"
+#include "Components/SceneCaptureComponent2D.h"
 #include "Components/SceneCaptureComponentCube.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "Engine/TextureRenderTargetCube.h"
@@ -15,6 +16,11 @@
 #include "MTSamplingFunctionLibrary.h"
 #include "MTSceneCaptureCube.h"
 #include "MTWayGraphSamplerConfig.h"
+
+UMTSamplerComponentBase::UMTSamplerComponentBase()
+{
+    PrimaryComponentTick.bCanEverTick = true;
+}
 
 void UMTSamplerComponentBase::BeginPlay()
 {
@@ -30,8 +36,8 @@ void UMTSamplerComponentBase::BeginSampling()
 
     bIsSampling = true;
     CurrentSampleCount = 0;
-    
-    GotoNextSampleStep(ENextSampleStep::InitSampling);
+
+    GotoNextSampleStep(ENextSampleStep::InitSampling, 4);
 }
 
 bool UMTSamplerComponentBase::IsSampling()
@@ -60,7 +66,7 @@ void UMTSamplerComponentBase::InitSampling()
         Tileset->SetShouldIgnorePlayerCamera(true);
         Tileset->PlayMovieSequencer();
     }
-    
+
     PanoramaCapture = GetWorld()->SpawnActor<AMTSceneCaptureCube>();
     PanoramaCapture->GetCaptureComponentCube()->TextureTarget =
         NewObject<UTextureRenderTargetCube>(this);
@@ -71,12 +77,26 @@ void UMTSamplerComponentBase::InitSampling()
         GetActiveConfig()->PanoramaWidth / 2, EPixelFormat::PF_B8G8R8A8);
     PanoramaCapture->GetCaptureComponentCube()->ShowFlags.SetToneCurve(ShouldUseToneCurve());
 
-
     PanoramaCapture->GetRenderTargetLongLat()->InitCustomFormat(
         PanoramaCapture->GetCaptureComponentCube()->TextureTarget->SizeX * 2,
         PanoramaCapture->GetCaptureComponentCube()->TextureTarget->SizeX,
         EPixelFormat::PF_B8G8R8A8,
         false);
+
+    Capture2D = GetWorld()->SpawnActor<AMTSceneCapture>();
+    Capture2D->GetCaptureComponent2D()->FOVAngle = 55.38;
+    Capture2D->GetCaptureComponent2D()->TextureTarget = NewObject<UTextureRenderTarget2D>(this);
+    Capture2D->GetCaptureComponent2D()->TextureTarget->bAutoGenerateMips = false;
+    Capture2D->GetCaptureComponent2D()->TextureTarget->CompressionSettings =
+        TextureCompressionSettings::TC_Default;
+    Capture2D->GetCaptureComponent2D()->TextureTarget->AddressX = TextureAddress::TA_Clamp;
+    Capture2D->GetCaptureComponent2D()->TextureTarget->AddressY = TextureAddress::TA_Clamp;
+    Capture2D->GetCaptureComponent2D()->TextureTarget->RenderTargetFormat = RTF_RGBA8;
+    Capture2D->GetCaptureComponent2D()->TextureTarget->TargetGamma = 2.2F;
+    Capture2D->GetCaptureComponent2D()->TextureTarget->bGPUSharedFlag = true;
+    Capture2D->GetCaptureComponent2D()->ShowFlags.SetToneCurve(ShouldUseToneCurve());
+    Capture2D->GetCaptureComponent2D()->TextureTarget->InitCustomFormat(
+        512, 512, EPixelFormat::PF_B8G8R8A8, false);
 
     for (int32 I = 0; I < CesiumPanoramaLoaderCameraIDs.Num(); ++I)
     {
@@ -85,9 +105,8 @@ void UMTSamplerComponentBase::InitSampling()
               GetActiveConfig()->PanoramaWidth / 2.},
              GetComponentLocation(),
              {0., I * 90., 0.},
-             90.});
+             110.});
     }
-    
 
     // TODO refactor into GetPriamryPlayerPawn
     const auto PlayerPawn = CastChecked<AMTPlayerPawn>(
@@ -95,29 +114,6 @@ void UMTSamplerComponentBase::InitSampling()
     PlayerPawn->GetCaptureCameraComponent()->SetActive(true);
     PlayerPawn->GetOverviewCameraComponent()->SetActive(false);
 
-    const auto ConfigDescriptorObj = CollectConfigDescription();
-    
-    const auto FileHeader = FString::Printf(
-        TEXT("{\r\n\"Info\":\r\n%s,\r\n\"Samples\":\r\n["),
-        *ConfigDescriptorObj.ToString<>());
-
-    FString SamplingMetadata = FPaths::Combine(
-    GetSessionDir(),
-    TEXT("metadata.json"));
-    
-    MetadataFilePath = SamplingMetadata;
-    bIsFirstMetadataFileWrite = true;
-    
-    if (!FPaths::FileExists(MetadataFilePath))
-    {
-        EnqueueFileWriteTask(FileHeader);
-    }
-    else
-    {
-        bIsFirstWriteToExistingMetadataFile = true;
-
-    }
-    
     GotoNextSampleStep(ENextSampleStep::FindNextSampleLocation);
 }
 
@@ -138,7 +134,7 @@ void UMTSamplerComponentBase::FindNextSampleLocation()
             return;
         }
     }
-    
+
     const FTransform SampleTransform = PossibleSampleLocation.GetValue();
 
     GetOwner()->SetActorTransform(SampleTransform);
@@ -146,7 +142,7 @@ void UMTSamplerComponentBase::FindNextSampleLocation()
     // make sure ground and surroudnigs are loaded
     UpdateCesiumCameras();
 
-    GotoNextSampleStep(ENextSampleStep::PreCaptureSample);
+    GotoNextSampleStep(ENextSampleStep::PreCaptureSample, 1);
 }
 
 void UMTSamplerComponentBase::PreCapture()
@@ -175,7 +171,7 @@ void UMTSamplerComponentBase::PreCapture()
     TraceOffsets[6] = {-75, 75, 0};
     TraceOffsets[7] = {0, 75, 0};
     TraceOffsets[8] = {75, 75, 0};
-    
+
     double TraceMissCounter = 0;
 
     for (const auto& TraceOffset : TraceOffsets)
@@ -193,28 +189,66 @@ void UMTSamplerComponentBase::PreCapture()
             TraceMissCounter++;
         }
     }
-    
+
     SampleArtifactProbability = TraceMissCounter / TraceOffsets.Num();
-    
-    const auto PlayerPawn = CastChecked<AMTPlayerPawn>(
-    GetWorld()->GetGameInstance()->GetPrimaryPlayerController()->GetPawn());
-    PlayerPawn->SetActorTransform(UpdatedTransform);
-    PlayerPawn->GetCaptureCameraComponent()->SetWorldRotation(GetOwner()->GetActorRotation());
 
     GetOwner()->SetActorTransform(UpdatedTransform);
 
+    const auto PlayerPawn = CastChecked<AMTPlayerPawn>(
+        GetWorld()->GetGameInstance()->GetPrimaryPlayerController()->GetPawn());
+    PlayerPawn->SetActorTransform(UpdatedTransform);
+    PlayerPawn->GetCaptureCameraComponent()->SetWorldRotation(GetOwner()->GetActorRotation());
+
     PanoramaCapture->SetActorTransform(UpdatedTransform);
-    
+    Capture2D->SetActorTransform(UpdatedTransform);
+
     UpdateCesiumCameras();
-    
-    GotoNextSampleStep(ENextSampleStep::CaptureSample);
+
+    GotoNextSampleStep(ENextSampleStep::CaptureSample, 1);
 }
+
+namespace
+{
+    FString CreateImageNameFromSample(const FMTSample& Sample)
+    {
+        // @ UTM_east @ UTM_north @ UTM_zone_number @ UTM_zone_letter @ latitude @ longitude @
+        // pano_id @ tile_num @ heading @ pitch @ roll @ height @ timestamp @ note @ extension
+        double UTMEast;
+        double UTMNorth;
+        TCHAR ZoneLetter;
+        int32 ZoneNumber;
+        UTM::LLtoUTM(
+            Sample.LonLatAltitude.X,
+            Sample.LonLatAltitude.Y,
+            UTMNorth,
+            UTMEast,
+            ZoneNumber,
+            ZoneLetter);
+
+        //const auto TimeStamp = FDateTime::UtcNow().ToString(TEXT("%Y%m%d_%H%M%S"));
+
+        return FString::Printf(
+            TEXT("@%.2f@%.2f@%d@%s@%.5f@%.5f@%s@%s@%d@%d@%d@%.2f@%s@art_prob_%.4f@.jpg"),
+            UTMEast,
+            UTMNorth,
+            ZoneNumber,
+            *FString().AppendChar(ZoneLetter),
+            Sample.LonLatAltitude.Y,
+            Sample.LonLatAltitude.X,
+            TEXT(""),
+            TEXT(""),
+            FMath::RoundToInt32(Sample.HeadingAngle),
+            FMath::RoundToInt32(Sample.Pitch),
+            FMath::RoundToInt32(Sample.Roll),
+            Sample.LonLatAltitude.Z,
+            TEXT(""), // TimeStamp
+            Sample.ArtifactProbability);
+    }
+}  // namespace
 
 void UMTSamplerComponentBase::CaptureSample()
 {
     TRACE_CPUPROFILER_EVENT_SCOPE(MTSampling::CaptureSample);
-
-    FString ImageDir = GetImageDir();
 
     // Write images from previous run doing this here gives them a couple of frames to complete
     // during this time we can already go to the next sample etc.
@@ -222,36 +256,32 @@ void UMTSamplerComponentBase::CaptureSample()
 
     WaitForRenderThreadReadSurfaceAndWriteImages();
 
-    WaitForMetadataWrites();
-
     FMTSample Sample = CollectSampleMetadata();
 
-    const auto AbsoluteImageFilePath =
-    FPaths::ConvertRelativePathToFull(GetSessionDir(), Sample.ImagePath);
-    
+    FString ImageDir = Sample.ImageDir.IsSet() ? Sample.ImageDir.GetValue() : GetImageDir();
+
+    FString ImageName =
+        Sample.ImageName.IsSet() ? Sample.ImageName.GetValue() : CreateImageNameFromSample(Sample);
+
+    const auto AbsoluteImageFilePath = FPaths::Combine(ImageDir, ImageName);
+
     // Assume we are resuming previous run and don't overwrite image or metadata
     if (FPaths::FileExists(AbsoluteImageFilePath))
     {
         GotoNextSampleStep(ENextSampleStep::FindNextSampleLocation);
         return;
     }
-    
+
     Sample.ArtifactProbability = SampleArtifactProbability;
 
-    if (FMath::IsNearlyEqual(SampleArtifactProbability, 1.))
+    if (bCapturePanorama)
     {
-        ConsecutiveSamplesWithArtifact++;
-    } else
-    {
-        ConsecutiveSamplesWithArtifact = 0;
+        EnqueueCapture({PanoramaCapture, AbsoluteImageFilePath});
     }
-    SamplesSinceLastTilesetRefresh++;
-    
-    WriteSampleMetadata(Sample);
-
-
-    
-    EnqueueCapture({PanoramaCapture, AbsoluteImageFilePath});
+    else
+    {
+        EnqueueCapture({Capture2D, AbsoluteImageFilePath});
+    }
 
     if (!CaptureQueue.IsEmpty())
     {
@@ -260,9 +290,19 @@ void UMTSamplerComponentBase::CaptureSample()
         GetWorld()->SendAllEndOfFrameUpdates();
         for (const auto& CaptureData : CaptureQueue)
         {
-            CastChecked<AMTSceneCaptureCube>(CaptureData.Capture)
-                ->GetCaptureComponentCube()
-                ->UpdateSceneCaptureContents(GetWorld()->Scene);
+            if (CaptureData.Capture->IsA<AMTSceneCaptureCube>())
+            {
+                const auto* CubeCapture = CastChecked<AMTSceneCaptureCube>(CaptureData.Capture);
+
+                CubeCapture->GetCaptureComponentCube()->UpdateSceneCaptureContents(
+                    GetWorld()->Scene);
+            }
+            else if (CaptureData.Capture->IsA<AMTSceneCapture>())
+            {
+                const auto* Capture = CastChecked<AMTSceneCapture>(CaptureData.Capture);
+
+                Capture->GetCaptureComponent2D()->UpdateSceneCaptureContents(GetWorld()->Scene);
+            }
         }
 
         ENQUEUE_RENDER_COMMAND(SceneDrawCompletion)
@@ -271,117 +311,55 @@ void UMTSamplerComponentBase::CaptureSample()
             {
                 TRACE_CPUPROFILER_EVENT_SCOPE(MTSampling::ReadSurface);
 
-                FIntPoint SizeOUT;
-                EPixelFormat FormatOUT;
-                CubemapHelpers::GenerateLongLatUnwrap(
-                    PanoramaCapture->GetCaptureComponentCube()->TextureTarget,
-                    PanoramaCapture->GetMutableImageDataRef(),
-                    SizeOUT,
-                    FormatOUT,
-                    PanoramaCapture->GetRenderTargetLongLat(),
-                    RHICmdList);
+                for (const auto& CaptureData : CaptureQueue)
+                {
+                    if (CaptureData.Capture->IsA<AMTSceneCaptureCube>())
+                    {
+                        auto* CubeCapture = CastChecked<AMTSceneCaptureCube>(CaptureData.Capture);
+
+                        FIntPoint SizeOUT;
+                        EPixelFormat FormatOUT;
+                        CubemapHelpers::GenerateLongLatUnwrap(
+                            CubeCapture->GetCaptureComponentCube()->TextureTarget,
+                            CubeCapture->GetMutableImageDataRef(),
+                            SizeOUT,
+                            FormatOUT,
+                            CubeCapture->GetRenderTargetLongLat(),
+                            RHICmdList);
+                    }
+                    else if (CaptureData.Capture->IsA<AMTSceneCapture>())
+                    {
+                        auto* Capture2D = CastChecked<AMTSceneCapture>(CaptureData.Capture);
+
+                        const auto* Resource = Capture2D->GetCaptureComponent2D()
+                                                   ->TextureTarget->GetRenderTargetResource();
+                        RHICmdList.ReadSurfaceData(
+                            Resource->GetRenderTargetTexture(),
+                            FIntRect(0, 0, Resource->GetSizeX(), Resource->GetSizeY()),
+                            Capture2D->GetMutableImageDataRef(),
+                            FReadSurfaceDataFlags(RCM_UNorm, CubeFace_MAX));
+                    }
+                }
             });
 
         CaptureFence.BeginFence();
     }
 
-    FileAppendWriterWorkerFuture = Async(
-        EAsyncExecution::ThreadPool,
-        [this]()
-        {
-            FString CurrentTask;
-            while (FileAppendQueue.Dequeue(CurrentTask))
-            {
-                FFileHelper::SaveStringToFile(
-                    CurrentTask,
-                    *MetadataFilePath,
-                    FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM,
-                    &IFileManager::Get(),
-                    FILEWRITE_Append);
-            }
-        });
-
-
-    if (ConsecutiveSamplesWithArtifact > 500 || SamplesSinceLastTilesetRefresh > 5000)
-    {
-        ConsecutiveSamplesWithArtifact = 0;
-        SamplesSinceLastTilesetRefresh = 0;
-        // for (auto* Tileset : TActorRange<ACesium3DTileset>(GetWorld()))
-        // {
-        //     GEngine->ForceGarbageCollection(true);
-        //     Tileset->RefreshTileset();
-        //     GEngine->ForceGarbageCollection(true);
-        // }
-    }
-    
     // Call Capture function on remaining samples
-    GotoNextSampleStep(ENextSampleStep::FindNextSampleLocation);
+    GotoNextSampleStep(ENextSampleStep::FindNextSampleLocation, 1);
 }
 
-void UMTSamplerComponentBase::GotoNextSampleStep(const ENextSampleStep NextStep)
+void UMTSamplerComponentBase::GotoNextSampleStep(
+    const ENextSampleStep NextStep,
+    const int32 StepWaitFrames)
 {
-    if (!bIsSampling)
-    {
-        return;
-    }
-
-    switch (NextStep)
-    {
-        case ENextSampleStep::InitSampling:
-            // skip one frame for initialization
-            GetWorld()->GetTimerManager().SetTimerForNextTick(
-                this, &UMTSamplerComponentBase::InitSampling);
-            break;
-        case ENextSampleStep::FindNextSampleLocation:
-            GetWorld()->GetTimerManager().SetTimerForNextTick(
-                this, &UMTSamplerComponentBase::FindNextSampleLocation);
-            break;
-        case ENextSampleStep::PreCaptureSample:
-            GetWorld()->GetTimerManager().SetTimerForNextTick(
-                this, &UMTSamplerComponentBase::PreCapture);
-            break;
-        case ENextSampleStep::CaptureSample:
-            GetWorld()->GetTimerManager().SetTimerForNextTick(
-                this, &UMTSamplerComponentBase::CaptureSample);
-            break;
-        default:
-            check(false);
-    }
+    NextSampleStep = NextStep;
+    StepFrameSkips = StepWaitFrames;
 }
 
-
-void UMTSamplerComponentBase::EnqueueCapture(
-    const FMTCaptureImagePathPair& CaptureImagePathPair)
+void UMTSamplerComponentBase::EnqueueCapture(const FMTCaptureImagePathPair& CaptureImagePathPair)
 {
     CaptureQueue.Add(CaptureImagePathPair);
-}
-
-void UMTSamplerComponentBase::EnqueueFileWriteTask(const FString& Data)
-{
-    FileAppendQueue.Enqueue(Data);
-}
-
-void UMTSamplerComponentBase::WriteSampleMetadata(const FMTSample& Sample)
-{
-    FJsonDomBuilder::FObject SampleObj;
-    SampleObj.Set(TEXT("ImagePath"), Sample.ImagePath);
-    SampleObj.Set(TEXT("Lon"), Sample.LonLatAltitude.X);
-    SampleObj.Set(TEXT("Lat"), Sample.LonLatAltitude.Y);
-    SampleObj.Set(TEXT("Altitude"), Sample.LonLatAltitude.Z);
-    SampleObj.Set(TEXT("HeadingAngle"), Sample.HeadingAngle);
-    SampleObj.Set(TEXT("StreetName"), Sample.StreetName);
-    SampleObj.Set(TEXT("ArtifactProbability"), Sample.ArtifactProbability);
-    
-    const auto SampleMetadataString = SampleObj.ToString<>();
-    
-    const auto JSONString = bIsFirstMetadataFileWrite && !bIsFirstWriteToExistingMetadataFile ? SampleMetadataString : TEXT(",") + SampleMetadataString;
-    EnqueueFileWriteTask(JSONString);
-
-    if (bIsFirstMetadataFileWrite)
-    {
-        bIsFirstWriteToExistingMetadataFile = false;
-        bIsFirstMetadataFileWrite = false;
-    }
 }
 
 void UMTSamplerComponentBase::UpdateCesiumCameras()
@@ -390,13 +368,17 @@ void UMTSamplerComponentBase::UpdateCesiumCameras()
     CameraManager->UpdateCamera(
         CesiumGroundLoaderCameraID,
         {{128, 128}, GetComponentLocation() + FVector(0, 0, 1000), {-90., 0., 0.}, 50.});
-    
+
     for (int32 I = 0; I < CesiumPanoramaLoaderCameraIDs.Num(); ++I)
     {
-        CameraManager->UpdateCamera(CesiumPanoramaLoaderCameraIDs[I],
-{{static_cast<double>(GetActiveConfig()->PanoramaWidth / 4.), GetActiveConfig()->PanoramaWidth / 2.}, GetComponentLocation(), {0., I * 90., 0.}, 90.});
+        CameraManager->UpdateCamera(
+            CesiumPanoramaLoaderCameraIDs[I],
+            {{static_cast<double>(GetActiveConfig()->PanoramaWidth / 2.),
+              GetActiveConfig()->PanoramaWidth / 2.},
+             GetComponentLocation(),
+             {0., I * 90., 0.},
+             110.});
     }
-
 }
 
 FString UMTSamplerComponentBase::GetImageDir()
@@ -408,47 +390,46 @@ void UMTSamplerComponentBase::WaitForRenderThreadReadSurfaceAndWriteImages()
 {
     TRACE_CPUPROFILER_EVENT_SCOPE(MTSampling::WaitForReadSurface);
 
+    for (auto& ImageWriteFuture : ImageWriteTaskFutures)
+    {
+        ImageWriteFuture.Wait();
+    }
+
+    ImageWriteTaskFutures.Reset();
+
     if (!CaptureQueue.IsEmpty())
     {
         // Allow other tasks to execute, we only care that out captures are not modified
-        CaptureFence.Wait(true);
+        CaptureFence.Wait(false);
 
         for (const auto& CaptureData : CaptureQueue)
         {
-            auto* Capture = CastChecked<AMTSceneCaptureCube>(CaptureData.Capture);
-            if (!UMTSamplingFunctionLibrary::WriteCubeMapPixelBufferToFile(
+            if (CaptureData.Capture->IsA<AMTSceneCaptureCube>())
+            {
+                auto* CubeCapture = CastChecked<AMTSceneCaptureCube>(CaptureData.Capture);
+                auto ImageWriteFuture = UMTSamplingFunctionLibrary::WriteCubeMapPixelBufferToFile(
+                    CaptureData.AbsoluteImagePath,
+                    CubeCapture->GetMutableImageDataRef(),
+                    {GetActiveConfig()->PanoramaWidth,
+                     CubeCapture->GetCaptureComponentCube()->TextureTarget->SizeX},
+                    {GetActiveConfig()->PanoramaTopCrop, GetActiveConfig()->PanoramaBottomCrop});
+                ImageWriteTaskFutures.Emplace(MoveTemp(ImageWriteFuture));
+            }
+            else if (CaptureData.Capture->IsA<AMTSceneCapture>())
+            {
+                auto* Capture = CastChecked<AMTSceneCapture>(CaptureData.Capture);
+
+                auto ImageWriteFuture = UMTSamplingFunctionLibrary::WritePixelBufferToFile(
                     CaptureData.AbsoluteImagePath,
                     Capture->GetMutableImageDataRef(),
-                    {GetActiveConfig()->PanoramaWidth,
-                     Capture->GetCaptureComponentCube()->TextureTarget->SizeX},
-                    {GetActiveConfig()->PanoramaTopCrop,
-                     GetActiveConfig()->PanoramaBottomCrop}))
-            {
-                // stop sampling
-                check(false);
-                return;
+                    {Capture->GetCaptureComponent2D()->TextureTarget->SizeX,
+                     Capture->GetCaptureComponent2D()->TextureTarget->SizeY});
+                ImageWriteTaskFutures.Emplace(MoveTemp(ImageWriteFuture));
             }
         }
-
-        CaptureQueue.Reset();
     }
-}
 
-void UMTSamplerComponentBase::WaitForMetadataWrites()
-{
-    FileAppendWriterWorkerFuture.Wait();
-}
-
-void UMTSamplerComponentBase::CloseMetadataFile()
-{
-    WaitForMetadataWrites();
-    
-    FFileHelper::SaveStringToFile(
-        TEXT("]}"),
-        *MetadataFilePath,
-        FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM,
-        &IFileManager::Get(),
-        FILEWRITE_Append);
+    CaptureQueue.Reset();
 }
 
 void UMTSamplerComponentBase::EndSampling()
@@ -456,17 +437,14 @@ void UMTSamplerComponentBase::EndSampling()
     // Wait for last batch
     WaitForRenderThreadReadSurfaceAndWriteImages();
 
-    WaitForMetadataWrites();
-
     PanoramaCapture->Destroy();
+    Capture2D->Destroy();
 
     // TODO refactor into GetPriamryPlayerPawn
     const auto PlayerPawn = CastChecked<AMTPlayerPawn>(
         GetWorld()->GetGameInstance()->GetPrimaryPlayerController()->GetPawn());
     PlayerPawn->GetCaptureCameraComponent()->SetActive(false);
     PlayerPawn->GetOverviewCameraComponent()->SetActive(true);
-
-    CloseMetadataFile();
 
     bIsSampling = false;
 }
@@ -485,4 +463,122 @@ FString UMTSamplerComponentBase::GetSessionDir() const
         GetActiveConfig()->GetConfigName()));
 
     return SessionDir;
+}
+
+TOptional<FTransform>
+UMTSamplerComponentBase::ValidateGroundAndObstructions(const bool bIgnoreObstructions) const
+{
+    const auto MaximumHeightDifference = FVector(0., 0., 100000.);
+
+    FHitResult GroundHit;
+    GetWorld()->LineTraceSingleByObjectType(
+        GroundHit,
+        GetComponentLocation() + MaximumHeightDifference,
+        GetComponentLocation() - MaximumHeightDifference,
+        FCollisionObjectQueryParams::AllStaticObjects);
+
+    if (!GroundHit.bBlockingHit)
+    {
+        return {};
+    }
+
+    // ground offset of street view car probably ~250, we attempt to stick close to street view liek
+    // scenarios because there is precedent in many papers e.g.
+    // @torii24PlaceRecognition2015 & @bertonRethinkingVisualGeolocalization2022
+    const auto GroundOffset = FVector(0., 0., 250.);
+
+    auto UpdatedSampleLocation = GroundHit.Location + GroundOffset;
+
+    if (!bIgnoreObstructions)
+    {
+        TArray<FHitResult> Hits;
+
+        constexpr auto TraceCount = 32;
+        constexpr auto ClearanceDistance = 800.;
+
+        // Line trace in a sphere around the updated location
+        for (int32 TraceIndex = 0; TraceIndex < TraceCount; ++TraceIndex)
+        {
+            const auto DegreeInterval = 360. / TraceCount;
+            FHitResult Hit;
+
+            GetWorld()->LineTraceSingleByObjectType(
+                Hit,
+                UpdatedSampleLocation,
+                UpdatedSampleLocation +
+                    FRotator(0., TraceIndex * DegreeInterval, 0.).Vector() * ClearanceDistance,
+                FCollisionObjectQueryParams::AllStaticObjects);
+            if (Hit.bBlockingHit)
+            {
+                Hits.Add(Hit);
+            }
+        }
+
+        // Calcualte poitn with clearance form all hits
+        if (Hits.Num() > 0)
+        {
+            FVector Center = FVector::ZeroVector;
+            for (const auto& Hit : Hits)
+            {
+                const auto HitToCam = (Hit.TraceStart - Hit.TraceEnd).GetSafeNormal();
+                const auto ClearPoint = Hit.Location + HitToCam * ClearanceDistance;
+                Center += ClearPoint;
+            }
+            Center /= Hits.Num();
+            UpdatedSampleLocation = Center;
+        }
+
+        GetWorld()->LineTraceSingleByObjectType(
+            GroundHit,
+            UpdatedSampleLocation + MaximumHeightDifference,
+            UpdatedSampleLocation - MaximumHeightDifference,
+            FCollisionObjectQueryParams::AllStaticObjects);
+
+        if (!GroundHit.bBlockingHit)
+        {
+            return {};
+        }
+
+        UpdatedSampleLocation = GroundHit.Location + GroundOffset;
+    }
+
+    return {FTransform(GetOwner()->GetActorRotation(), UpdatedSampleLocation)};
+}
+
+void UMTSamplerComponentBase::TickComponent(
+    float DeltaTime,
+    ELevelTick TickType,
+    FActorComponentTickFunction* ThisTickFunction)
+{
+    Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+
+    if (StepFrameSkips > 0)
+    {
+        StepFrameSkips--;
+        return;
+    }
+
+    if (!bIsSampling)
+    {
+        return;
+    }
+
+    switch (NextSampleStep)
+    {
+        case ENextSampleStep::InitSampling:
+            // skip one frame for initialization
+            InitSampling();
+            break;
+        case ENextSampleStep::FindNextSampleLocation:
+            FindNextSampleLocation();
+            break;
+        case ENextSampleStep::PreCaptureSample:
+            PreCapture();
+            break;
+        case ENextSampleStep::CaptureSample:
+            CaptureSample();
+            break;
+        default:
+            check(false);
+    }
 }

@@ -66,7 +66,8 @@ async def post_image2(request: Request):
                     hnsw_ef=512,
                     quantization=models.QuantizationSearchParams(
                         rescore=True
-                    )
+                    ),
+                    exact=True,
                 ),
                 offset=offset,
                 limit=limit,

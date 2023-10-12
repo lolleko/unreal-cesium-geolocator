@@ -6,6 +6,7 @@
 #include "Engine/SceneCapture.h"
 #include "JsonDomBuilder.h"
 #include "MTSample.h"
+#include "MTSceneCapture.h"
 #include "MTSceneCaptureCube.h"
 #include "MTWayGraphSamplerConfig.h"
 
@@ -26,6 +27,8 @@ class GEOLOCATOR_API UMTSamplerComponentBase : public USceneComponent
 	GENERATED_BODY()
 
 public:
+    UMTSamplerComponentBase();
+    
     void BeginPlay() override;
     
     void BeginSampling();
@@ -88,9 +91,21 @@ protected:
 
     FString GetSessionDir() const;
 
+    TOptional<FTransform> ValidateGroundAndObstructions(const bool bIgnoreObstructions = false) const;
+
+    void TogglePanoramaCapture(const bool bEnable)
+    {
+        bCapturePanorama = bEnable;
+    }
+
+    virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+
 private:
     UPROPERTY()
     TObjectPtr<AMTSceneCaptureCube> PanoramaCapture;
+
+    UPROPERTY()
+    TObjectPtr<AMTSceneCapture> Capture2D;
 
     UPROPERTY(EditAnywhere)
     bool bShouldSampleOnBeginPlay = false;
@@ -102,30 +117,32 @@ private:
     
     bool bIsSampling = false;
 
+    bool bCapturePanorama = true;
+
     int32 CesiumGroundLoaderCameraID;
 
     TStaticArray<int32, 4> CesiumPanoramaLoaderCameraIDs;
 
     double SampleArtifactProbability = 0.;
 
-    int32 ConsecutiveSamplesWithArtifact = 0;
-
-    int32 SamplesSinceLastTilesetRefresh = 0;
-
     TArray<FMTCaptureImagePathPair> CaptureQueue;
+
+    TArray<TFuture<void>> ImageWriteTaskFutures;
 
     FRenderCommandFence CaptureFence;
 
-    TQueue<FString> FileAppendQueue;
+    enum class ENextSampleStep
+    {
+        InitSampling,
+        FindNextSampleLocation,
+        PreCaptureSample,
+        CaptureSample,
+    };
+    
+    ENextSampleStep NextSampleStep = ENextSampleStep::InitSampling;
 
-    FString MetadataFilePath;
-
-    bool bIsFirstWriteToExistingMetadataFile = false;
-
-    bool bIsFirstMetadataFileWrite = true;
-
-    TFuture<void> FileAppendWriterWorkerFuture;
-
+    int32 StepFrameSkips = 0;
+    
     UFUNCTION()
     void InitSampling();
 
@@ -137,31 +154,15 @@ private:
     
     UFUNCTION()
     void CaptureSample();
-
-    enum class ENextSampleStep
-    {
-        InitSampling,
-        FindNextSampleLocation,
-        PreCaptureSample,
-        CaptureSample,
-    };
-
-    void GotoNextSampleStep(const ENextSampleStep NextStep);
+    
+    void GotoNextSampleStep(const ENextSampleStep NextStep, const int32 StepWaitFrames = 0);
 
     void EnqueueCapture(const FMTCaptureImagePathPair& CaptureImagePathPair);
-    
-    void EnqueueFileWriteTask(const FString& Data);
-
-    void WriteSampleMetadata(const FMTSample& Sample);
 
     void UpdateCesiumCameras();
     
     FString GetImageDir();
     
     void WaitForRenderThreadReadSurfaceAndWriteImages();
-
-    void WaitForMetadataWrites();
-
-    void CloseMetadataFile();
-
+    
 };

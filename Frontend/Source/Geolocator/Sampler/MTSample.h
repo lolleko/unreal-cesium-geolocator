@@ -13,14 +13,21 @@ USTRUCT(BlueprintType)
 struct GEOLOCATOR_API FMTSample
 {
     GENERATED_BODY()
+
+    TOptional<FString> ImageDir; 
     
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    FString ImagePath; // Empty if image not saved
+    TOptional<FString> ImageName;
     
     TArray<ANSICHAR> Descriptor;
     
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     double HeadingAngle;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    double Pitch;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    double Roll;
     
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FVector LonLatAltitude;
@@ -30,11 +37,14 @@ struct GEOLOCATOR_API FMTSample
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     double ArtifactProbability;
-
+    
     // Only present during inference
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     double Score;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FString Region;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    FString AbsoluteImagePath;
 };

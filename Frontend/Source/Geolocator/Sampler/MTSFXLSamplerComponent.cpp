@@ -75,6 +75,12 @@ TOptional<FTransform> UMTSFXLSamplerComponent::SampleNextLocation()
         Locations.RemoveAtSwap(CurrentSampleIndex);
     }
 
+    if (Locations.IsEmpty())
+    {
+        EndSampling();
+        return {};
+    }
+    
     double ClosestSampleDistance = MAX_dbl;
     
     for (int32 I = 0; I < Locations.Num(); ++I)
@@ -87,12 +93,6 @@ TOptional<FTransform> UMTSFXLSamplerComponent::SampleNextLocation()
             ClosestSampleDistance = Distance;
             CurrentSampleIndex = I;
         }
-    }
-    
-    if (Locations.IsEmpty())
-    {
-        EndSampling();
-        return {};
     }
     
     return Locations[CurrentSampleIndex].Location;
@@ -109,13 +109,11 @@ FMTSample UMTSFXLSamplerComponent::CollectSampleMetadata()
 
     const auto SampleLonLat =
         Georeference->TransformUnrealPositionToLongitudeLatitudeHeight(GetComponentLocation());
-    const auto EastSouthUp = Georeference->TransformUnrealRotatorToEastSouthUp(
-        GetComponentRotation(), GetComponentLocation());
-    const auto HeadingAngle = FRotator::ClampAxis(EastSouthUp.Yaw);
-    const auto RelativeFileName =
-        FPaths::Combine("./Images", Locations[CurrentSampleIndex].Path);
-
-    return {RelativeFileName, {}, HeadingAngle, SampleLonLat, TEXT("")};
+    const auto EastSouthUp = GetComponentRotation();
+    const auto HeadingAngle = FRotator::ClampAxis(EastSouthUp.Yaw + 90.);
+    const auto Pitch = FRotator::ClampAxis(EastSouthUp.Pitch + 90.);
+    
+    return {{}, Locations[CurrentSampleIndex].Path, {}, HeadingAngle, Pitch, EastSouthUp.Roll, SampleLonLat, TEXT("")};
 }
 
 FJsonDomBuilder::FObject UMTSFXLSamplerComponent::CollectConfigDescription()

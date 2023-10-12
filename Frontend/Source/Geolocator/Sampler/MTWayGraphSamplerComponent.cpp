@@ -153,78 +153,7 @@ TOptional<FTransform> UMTWayGraphSamplerComponent::SampleNextLocation()
 
 TOptional<FTransform> UMTWayGraphSamplerComponent::ValidateSampleLocation()
 {
-    const auto MaximumHeightDifference = FVector(0., 0., 100000.);
-
-    FHitResult GroundHit;
-    GetWorld()->LineTraceSingleByObjectType(
-        GroundHit,
-        GetComponentLocation() + MaximumHeightDifference,
-        GetComponentLocation() - MaximumHeightDifference,
-        FCollisionObjectQueryParams::AllStaticObjects);
-
-    if (!GroundHit.bBlockingHit)
-    {
-        return {};
-    }
-
-    // ground offset of street view car probably ~250, we attempt to stick close to street view liek
-    // scenarios because there is precedent in many papers e.g.
-    // @torii24PlaceRecognition2015 & @bertonRethinkingVisualGeolocalization2022
-    const auto GroundOffset = FVector(0., 0., 250.);
-
-    auto UpdatedSampleLocation = GroundHit.Location + GroundOffset;
-
-    TArray<FHitResult> Hits;
-
-    constexpr auto TraceCount = 32;
-    constexpr auto ClearanceDistance = 800.;
-
-    // Line trace in a sphere around the updated location
-    for (int32 TraceIndex = 0; TraceIndex < TraceCount; ++TraceIndex)
-    {
-        const auto DegreeInterval = 360. / TraceCount;
-        FHitResult Hit;
-
-        GetWorld()->LineTraceSingleByObjectType(
-            Hit,
-            UpdatedSampleLocation,
-            UpdatedSampleLocation +
-                FRotator(0., TraceIndex * DegreeInterval, 0.).Vector() * ClearanceDistance,
-            FCollisionObjectQueryParams::AllStaticObjects);
-        if (Hit.bBlockingHit)
-        {
-            Hits.Add(Hit);
-        }
-    }
-
-    // Calcualte poitn with clearance form all hits
-    if (Hits.Num() > 0)
-    {
-        FVector Center = FVector::ZeroVector;
-        for (const auto& Hit : Hits)
-        {
-            const auto HitToCam = (Hit.TraceStart - Hit.TraceEnd).GetSafeNormal();
-            const auto ClearPoint = Hit.Location + HitToCam * ClearanceDistance;
-            Center += ClearPoint;
-        }
-        Center /= Hits.Num();
-        UpdatedSampleLocation = Center;
-    }
-
-    GetWorld()->LineTraceSingleByObjectType(
-        GroundHit,
-        UpdatedSampleLocation + MaximumHeightDifference,
-        UpdatedSampleLocation - MaximumHeightDifference,
-        FCollisionObjectQueryParams::AllStaticObjects);
-
-    if (!GroundHit.bBlockingHit)
-    {
-        return {};
-    }
-
-    UpdatedSampleLocation = GroundHit.Location + GroundOffset;
-
-    return {FTransform(GetOwner()->GetActorRotation(), UpdatedSampleLocation)};
+    return ValidateGroundAndObstructions();
 }
 
 FMTSample UMTWayGraphSamplerComponent::CollectSampleMetadata()
@@ -238,23 +167,8 @@ FMTSample UMTWayGraphSamplerComponent::CollectSampleMetadata()
     const auto HeadingAngle = FRotator::ClampAxis(EastSouthUp.Yaw);
 
     const auto StreetName = StreetData.Graph.GetWayName(CurrentWayIndex);
-
-    // We explicilty use the location calculated from SampleNextLocation
-    // and not long lat above or current position after adjustments
-    // this will ensure we have a consistent location for the same sample across multiple runs
-    // we mutliple by 1000 and round to store the first 4 decimal places and ensuring we wont have
-    // issues with floating point precision
-    FString SampleName = FString::Format(
-        TEXT("{0}-{1}-{2}-{3}"),
-        {FMath::RoundToInt64(CurrentSampleLocation.X * 1000),
-         FMath::RoundToInt64(CurrentSampleLocation.Y * 1000),
-         FMath::RoundToInt64(CurrentSampleLocation.Z * 1000),
-         CurrentWayIndex});
-
-    const auto RelativeFileName =
-        FPaths::Combine("./Images", FString::Format(TEXT("{0}.jpg"), {SampleName}));
-
-    return {RelativeFileName, {}, HeadingAngle, SampleLonLat, StreetName, 0.};
+    
+    return {{}, {}, {}, HeadingAngle, EastSouthUp.Pitch, EastSouthUp.Roll, SampleLonLat, StreetName, 0.};
 }
 
 FJsonDomBuilder::FObject UMTWayGraphSamplerComponent::CollectConfigDescription()

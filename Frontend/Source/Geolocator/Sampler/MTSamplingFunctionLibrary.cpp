@@ -92,13 +92,13 @@ bool UMTSamplingFunctionLibrary::ReadPixelsFromRenderTarget(
     return true;
 }
 
-bool UMTSamplingFunctionLibrary::WritePixelBufferToFile(
+TFuture<void> UMTSamplingFunctionLibrary::WritePixelBufferToFile(
     const FString& FilePath,
     const TArray<FColor>& PixelBuffer,
     const FIntVector2& Size)
 {
-    AsyncTask(
-        ENamedThreads::AnyBackgroundThreadNormalTask,
+    return Async(
+        EAsyncExecution::Thread,
         [PixelBufferCopy = PixelBuffer, FilePath, Size]()
         {
             IImageWrapperModule& ImageWrapperModule =
@@ -109,24 +109,20 @@ bool UMTSamplingFunctionLibrary::WritePixelBufferToFile(
                 ImgData,
                 EImageFormat::JPEG,
                 FImageView(
-                    (uint8*)(PixelBufferCopy.GetData()),
-                    Size.X,
-                    Size.Y,
-                    ERawImageFormat::BGRA8),
+                    (uint8*)(PixelBufferCopy.GetData()), Size.X, Size.Y, ERawImageFormat::BGRA8),
                 85);
             FFileHelper::SaveArrayToFile(ImgData, *FilePath);
         });
-
-    return true;
 }
-bool UMTSamplingFunctionLibrary::WriteCubeMapPixelBufferToFile(
+
+TFuture<void> UMTSamplingFunctionLibrary::WriteCubeMapPixelBufferToFile(
     const FString& FilePath,
     const TArray<FColor>& PixelBuffer,
     const FIntVector2& Size,
     const FIntVector2& TopAndBottomCrop)
 {
-    AsyncTask(
-        ENamedThreads::AnyBackgroundThreadNormalTask,
+    return Async(
+        EAsyncExecution::Thread,
         [PixelBufferCopy = PixelBuffer, FilePath, Size, TopAndBottomCrop]()
         {
             IImageWrapperModule& ImageWrapperModule =
@@ -144,12 +140,12 @@ bool UMTSamplingFunctionLibrary::WriteCubeMapPixelBufferToFile(
                 85);
             FFileHelper::SaveArrayToFile(ImgData, *FilePath);
         });
-
-    return true;
 }
 
 TArray<UMTSamplingFunctionLibrary::FLocationPathPair>
-UMTSamplingFunctionLibrary::PanoramaLocationsFromCosPlaceCSV(const FString& FilePath, const ACesiumGeoreference* Georeference)
+UMTSamplingFunctionLibrary::PanoramaLocationsFromCosPlaceCSV(
+    const FString& FilePath,
+    const ACesiumGeoreference* Georeference)
 {
     TArray<FString> CSVLines;
     FFileHelper::LoadFileToStringArray(CSVLines, *FilePath);
@@ -169,15 +165,71 @@ UMTSamplingFunctionLibrary::PanoramaLocationsFromCosPlaceCSV(const FString& File
         const auto Pitch = FCString::Atod(*CSVRowEntries[12]);
         const auto Roll = FCString::Atod(*CSVRowEntries[13]);
 
-        const FVector UnrealLocation = Georeference->TransformLongitudeLatitudeHeightPositionToUnreal(FVector{Lon, Lat, Alt});
-        const FRotator HeadingRotation = FRotator{Pitch - 90, Heading, Roll};
-        const FRotator UnrealRotationOnlyHeading = Georeference->TransformEastSouthUpRotatorToUnreal(HeadingRotation, UnrealLocation);
-        const FRotator UnrealRotation = FRotator{0, UnrealRotationOnlyHeading.Yaw, 0};
+        const FVector UnrealLocation =
+            Georeference->TransformLongitudeLatitudeHeightPositionToUnreal(FVector{Lon, Lat, Alt});
+        const FRotator HeadingRotation = FRotator{Pitch - 90, Heading - 90, Roll};
 
-        const FTransform Transform{UnrealRotation, UnrealLocation};
+        const FTransform Transform{HeadingRotation, UnrealLocation};
 
         Result.Add({Transform, Path});
-        
+    }
+
+    return Result;
+}
+
+TArray<UMTSamplingFunctionLibrary::FLocationPathPair>
+UMTSamplingFunctionLibrary::PredictionsLocationsFromFile(
+    const FString& FilePath,
+    const ACesiumGeoreference* Georeference)
+{
+    TArray<FLocationPathPair> Result;
+
+    FString JSONRaw;
+    FFileHelper::LoadFileToString(JSONRaw, *FilePath);
+
+    const TSharedRef<TJsonReader<>> Reader = FJsonStringReader::Create(MoveTemp(JSONRaw));
+
+    TArray<TSharedPtr<FJsonValue>> QueryInfos;
+    if (!FJsonSerializer::Deserialize(Reader, QueryInfos))
+    {
+        check(false);
+    }
+
+    for (const auto& QueryInfo : QueryInfos)
+    {
+        const auto& QueryInfoObject = QueryInfo->AsObject();
+        const auto& QueryInfoPredications = QueryInfoObject->GetArrayField(TEXT("predictions"));
+        const auto& QueryTempDatabaseDir = QueryInfoObject->GetStringField(TEXT("database_outdir"));
+        for (const auto& Prediction : QueryInfoPredications)
+        {
+            const auto PredictionPath = Prediction->AsString();
+            const auto PredictionPathWithoutExtension = FPaths::GetBaseFilename(PredictionPath);
+
+            // @ UTM_east @ UTM_north @ UTM_zone_number @ UTM_zone_letter @ latitude @ longitude @
+            // pano_id @ tile_num @ heading @ pitch @ roll @ height @ timestamp @ note @ extension
+            TArray<FString> PredictionPathParts;
+            PredictionPathWithoutExtension.ParseIntoArray(PredictionPathParts, TEXT("@"), false);
+
+            // get long lat alt heading pitch roll
+            const auto Lat = FCString::Atod(*PredictionPathParts[5]);
+            const auto Lon = FCString::Atod(*PredictionPathParts[6]);
+            const auto Alt = FCString::Atod(*PredictionPathParts[12]);
+            const auto Heading =
+                FCString::Atod(*PredictionPathParts[9]);  // TODO hack because panroama cropping
+                                                          // outptus invalid headingangles
+            const auto Pitch = FCString::Atod(*PredictionPathParts[10]);
+            const auto Roll = FCString::Atod(*PredictionPathParts[11]);
+
+            const FVector UnrealLocation =
+                Georeference->TransformLongitudeLatitudeHeightPositionToUnreal(FVector{Lon, Lat, Alt});
+            const FRotator HeadingRotation = FRotator{Pitch - 90, Heading - 90, Roll};
+
+            const FTransform Transform{HeadingRotation, UnrealLocation};
+            
+            Result.Add(
+                {Transform,
+                 FPaths::Combine(QueryTempDatabaseDir, FPaths::GetBaseFilename(PredictionPath))});
+        }
     }
 
     return Result;
