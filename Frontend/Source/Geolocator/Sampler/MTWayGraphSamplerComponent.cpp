@@ -162,41 +162,13 @@ FMTSample UMTWayGraphSamplerComponent::CollectSampleMetadata()
 
     const auto SampleLonLat =
         Georeference->TransformUnrealPositionToLongitudeLatitudeHeight(GetComponentLocation());
-    const auto EastSouthUp = Georeference->TransformUnrealRotatorToEastSouthUp(
-        GetComponentRotation(), GetComponentLocation());
-    const auto HeadingAngle = FRotator::ClampAxis(EastSouthUp.Yaw);
+    const auto EastSouthUp = GetComponentRotation();
+    const auto HeadingAngle = FRotator::ClampAxis(EastSouthUp.Yaw + 90.);
+    const auto Pitch = FRotator::ClampAxis(EastSouthUp.Pitch + 90.);
 
     const auto StreetName = StreetData.Graph.GetWayName(CurrentWayIndex);
     
-    return {{}, {}, {}, HeadingAngle, EastSouthUp.Pitch, EastSouthUp.Roll, SampleLonLat, StreetName, 0.};
-}
-
-FJsonDomBuilder::FObject UMTWayGraphSamplerComponent::CollectConfigDescription()
-{
-    const auto DistanceInterval = GetActiveConfig()->SampleDistance;
-
-    FJsonDomBuilder::FObject ConfigDescriptorObj;
-    ConfigDescriptorObj.Set(TEXT("SampleDistance"), DistanceInterval);
-
-    FJsonDomBuilder::FArray PolygonArray;
-
-    if (BoundingPolygon)
-    {
-        const auto SampledPolygon =
-            BoundingPolygon->CreateCartographicPolygon(FTransform::Identity);
-        for (const auto& VertexCoord : SampledPolygon.getVertices())
-        {
-            FJsonDomBuilder::FObject CordObj;
-            CordObj.Set(TEXT("Lon"), FMath::RadiansToDegrees(VertexCoord.x));
-            CordObj.Set(TEXT("Lat"), FMath::RadiansToDegrees(VertexCoord.y));
-
-            PolygonArray.Add(CordObj);
-        }
-    }
-
-    ConfigDescriptorObj.Set(TEXT("BoundingPolygon"), PolygonArray);
-
-    return ConfigDescriptorObj;
+    return {{}, {}, {}, HeadingAngle, Pitch, EastSouthUp.Roll, SampleLonLat, StreetName, 0.};
 }
 
 void UMTWayGraphSamplerComponent::InitSamplingParameters()

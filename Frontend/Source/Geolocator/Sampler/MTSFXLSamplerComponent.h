@@ -27,8 +27,6 @@ protected:
 
     virtual FMTSample CollectSampleMetadata() override;
 
-    virtual FJsonDomBuilder::FObject CollectConfigDescription() override;
-    
 private:
     UPROPERTY(EditAnywhere)
     FString FilePath;

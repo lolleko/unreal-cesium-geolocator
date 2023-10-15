@@ -24,7 +24,7 @@ void UMTExtraViewSamplerComponent::BeginPlay()
         CurrentPredictionIndex = INDEX_NONE;
         CurrentSampleGridCellIndex = 0;
         SampleGridRadius = 1;
-        SampleGridCellSize = FVector(800, 800, 200);
+        SampleGridCellSize = FVector(1000, 1000, 200);
         SampleGrid = TMTNDGridAccessor<3>({2*SampleGridRadius, 2*SampleGridRadius, 1});
 
         InitialLocationCount = Locations.Num();
@@ -79,6 +79,8 @@ TOptional<FTransform> UMTExtraViewSamplerComponent::SampleNextLocation()
     
     CurrentSampleGridCellIndex++;
 
+    ChangeCapture2DResolution(Locations[CurrentPredictionIndex].Resolution);
+    
     return CellTransform;
 }
 
@@ -106,7 +108,19 @@ TOptional<FTransform> UMTExtraViewSamplerComponent::ValidateSampleLocation()
     //const auto CurrentFocalPoint = Locations[CurrentPredictionIndex].Location.GetLocation() + Locations[CurrentPredictionIndex].Location.Rotator().Vector() * FocalDistances[CurrentFocalDistanceIndex];
     const auto CurrentFocalPoint = OriginalPositionWithGroundAdjusted + OriginalTransform.GetRotation().Vector() * FocalDistance;
 
+    // Draw orignal focal point
+    // DrawDebugSphere(GetWorld(), OriginalPositionWithGroundAdjusted, 100, 12, FColor::Red, false, 0.1, 0, 1);
+    // DrawDebugSphere(GetWorld(), CurrentFocalPoint, 100, 12, FColor::Yellow, false, 0.1, 0, 1);
+    // DrawDebugLine(GetWorld(), OriginalPositionWithGroundAdjusted, CurrentFocalPoint, FColor::Orange, false, 0.1, 0, 1);
+
+
+    
     const auto LookAtRotation = FRotationMatrix::MakeFromX(CurrentFocalPoint - GroundTransform->GetLocation()).ToQuat();
+    
+    // DrawDebugSphere(GetWorld(), GroundTransform->GetLocation(), 100, 12, FColor::Green, false, 0.1, 0, 1);
+    // DrawDebugLine(GetWorld(), GroundTransform->GetLocation(), GroundTransform->GetLocation() + LookAtRotation.Vector() * FocalDistance, FColor::Blue, false, 0.1, 0, 1);
+
+    
     auto OrientedTransform = FTransform(LookAtRotation, GroundTransform->GetLocation() + FVector(0, 0, 200));
 
     return OrientedTransform;
@@ -123,11 +137,4 @@ FMTSample UMTExtraViewSamplerComponent::CollectSampleMetadata()
     const auto Pitch = FRotator::ClampAxis(EastSouthUp.Pitch + 90.);
 
     return {Locations[CurrentPredictionIndex].Path, {}, {}, HeadingAngle, Pitch, EastSouthUp.Roll, SampleLonLat, TEXT("")};
-}
-
-FJsonDomBuilder::FObject UMTExtraViewSamplerComponent::CollectConfigDescription()
-{
-    FJsonDomBuilder::FObject ConfigDescriptorObj;
-    
-    return ConfigDescriptorObj;
 }

@@ -142,7 +142,7 @@ void UMTSamplerComponentBase::FindNextSampleLocation()
     // make sure ground and surroudnigs are loaded
     UpdateCesiumCameras();
 
-    GotoNextSampleStep(ENextSampleStep::PreCaptureSample, 1);
+    GotoNextSampleStep(ENextSampleStep::PreCaptureSample);
 }
 
 void UMTSamplerComponentBase::PreCapture()
@@ -200,6 +200,7 @@ void UMTSamplerComponentBase::PreCapture()
     PlayerPawn->GetCaptureCameraComponent()->SetWorldRotation(GetOwner()->GetActorRotation());
 
     PanoramaCapture->SetActorTransform(UpdatedTransform);
+    PanoramaCapture->AddActorWorldRotation(FRotator(0., 90., 0.));
     Capture2D->SetActorTransform(UpdatedTransform);
 
     UpdateCesiumCameras();
@@ -228,7 +229,7 @@ namespace
         //const auto TimeStamp = FDateTime::UtcNow().ToString(TEXT("%Y%m%d_%H%M%S"));
 
         return FString::Printf(
-            TEXT("@%.2f@%.2f@%d@%s@%.5f@%.5f@%s@%s@%d@%d@%d@%.2f@%s@art_prob_%.4f@.jpg"),
+            TEXT("@%.2f@%.2f@%d@%s@%.5f@%.5f@%s@%s@%.2f@%.2f@%.2f@%.2f@%s@art_prob_%.4f@.jpg"),
             UTMEast,
             UTMNorth,
             ZoneNumber,
@@ -237,9 +238,9 @@ namespace
             Sample.LonLatAltitude.X,
             TEXT(""),
             TEXT(""),
-            FMath::RoundToInt32(Sample.HeadingAngle),
-            FMath::RoundToInt32(Sample.Pitch),
-            FMath::RoundToInt32(Sample.Roll),
+            Sample.HeadingAngle,
+            Sample.Pitch,
+            Sample.Roll,
             Sample.LonLatAltitude.Z,
             TEXT(""), // TimeStamp
             Sample.ArtifactProbability);
@@ -346,7 +347,7 @@ void UMTSamplerComponentBase::CaptureSample()
     }
 
     // Call Capture function on remaining samples
-    GotoNextSampleStep(ENextSampleStep::FindNextSampleLocation, 1);
+    GotoNextSampleStep(ENextSampleStep::FindNextSampleLocation);
 }
 
 void UMTSamplerComponentBase::GotoNextSampleStep(
@@ -493,8 +494,8 @@ UMTSamplerComponentBase::ValidateGroundAndObstructions(const bool bIgnoreObstruc
     {
         TArray<FHitResult> Hits;
 
-        constexpr auto TraceCount = 32;
-        constexpr auto ClearanceDistance = 800.;
+        constexpr auto TraceCount = 64;
+        constexpr auto ClearanceDistance = 1000.;
 
         // Line trace in a sphere around the updated location
         for (int32 TraceIndex = 0; TraceIndex < TraceCount; ++TraceIndex)
@@ -508,11 +509,25 @@ UMTSamplerComponentBase::ValidateGroundAndObstructions(const bool bIgnoreObstruc
                 UpdatedSampleLocation +
                     FRotator(0., TraceIndex * DegreeInterval, 0.).Vector() * ClearanceDistance,
                 FCollisionObjectQueryParams::AllStaticObjects);
+
+            // DrawDebugLine(
+            //     GetWorld(),
+            //     UpdatedSampleLocation,
+            //     UpdatedSampleLocation +
+            //         FRotator(0., TraceIndex * DegreeInterval, 0.).Vector() * ClearanceDistance,
+            //     FColor::Orange,
+            //     false,
+            //     0.01,
+            //     0,
+            //     1);
             if (Hit.bBlockingHit)
             {
+                //DrawDebugSphere(GetWorld(), Hit.Location, 50, 6, FColor::Red, false, 0.01, 0, 1);
                 Hits.Add(Hit);
             }
         }
+
+       // DrawDebugSphere(GetWorld(), UpdatedSampleLocation, 100, 12, FColor::Green, false, 0.01, 0, 1);
 
         // Calcualte poitn with clearance form all hits
         if (Hits.Num() > 0)
@@ -522,6 +537,7 @@ UMTSamplerComponentBase::ValidateGroundAndObstructions(const bool bIgnoreObstruc
             {
                 const auto HitToCam = (Hit.TraceStart - Hit.TraceEnd).GetSafeNormal();
                 const auto ClearPoint = Hit.Location + HitToCam * ClearanceDistance;
+                //DrawDebugSphere(GetWorld(), ClearPoint, 50, 6, FColor::Yellow, false, 0.01, 0, 1);
                 Center += ClearPoint;
             }
             Center /= Hits.Num();
@@ -533,6 +549,9 @@ UMTSamplerComponentBase::ValidateGroundAndObstructions(const bool bIgnoreObstruc
             UpdatedSampleLocation + MaximumHeightDifference,
             UpdatedSampleLocation - MaximumHeightDifference,
             FCollisionObjectQueryParams::AllStaticObjects);
+
+
+        //DrawDebugSphere(GetWorld(), UpdatedSampleLocation, 100, 12, FColor::Blue, false, 0.01, 0, 1);
 
         if (!GroundHit.bBlockingHit)
         {

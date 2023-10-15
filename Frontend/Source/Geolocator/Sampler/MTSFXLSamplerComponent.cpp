@@ -115,30 +115,3 @@ FMTSample UMTSFXLSamplerComponent::CollectSampleMetadata()
     
     return {{}, Locations[CurrentSampleIndex].Path, {}, HeadingAngle, Pitch, EastSouthUp.Roll, SampleLonLat, TEXT("")};
 }
-
-FJsonDomBuilder::FObject UMTSFXLSamplerComponent::CollectConfigDescription()
-{
-    FJsonDomBuilder::FObject ConfigDescriptorObj;
-    
-    FJsonDomBuilder::FArray PolygonArray;
-
-    if (BoundingPolygon)
-    {
-        const auto SampledPolygon = BoundingPolygon->CreateCartographicPolygon(FTransform::Identity);
-        for (const auto& VertexCoord : SampledPolygon.getVertices())
-        {
-            FJsonDomBuilder::FObject CordObj;
-            CordObj.Set(
-                TEXT("Lon"), FMath::RadiansToDegrees(VertexCoord.x));
-            CordObj.Set(
-                TEXT("Lat"), FMath::RadiansToDegrees(VertexCoord.y));
-
-            PolygonArray.Add(CordObj);
-        }
-
-    }
-    
-    ConfigDescriptorObj.Set(TEXT("BoundingPolygon"), PolygonArray);
-
-    return ConfigDescriptorObj;
-}

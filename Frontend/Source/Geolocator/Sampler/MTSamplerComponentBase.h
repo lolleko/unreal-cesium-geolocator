@@ -2,8 +2,10 @@
 
 #pragma once
 
+#include "Components/SceneCaptureComponent2D.h"
 #include "CoreMinimal.h"
 #include "Engine/SceneCapture.h"
+#include "Engine/TextureRenderTarget2D.h"
 #include "JsonDomBuilder.h"
 #include "MTSample.h"
 #include "MTSceneCapture.h"
@@ -21,16 +23,16 @@ struct FMTCaptureImagePathPair
     FString AbsoluteImagePath;
 };
 
-UCLASS(ClassGroup=(Custom), Abstract)
+UCLASS(ClassGroup = (Custom), Abstract)
 class GEOLOCATOR_API UMTSamplerComponentBase : public USceneComponent
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 
 public:
     UMTSamplerComponentBase();
-    
+
     void BeginPlay() override;
-    
+
     void BeginSampling();
 
     UFUNCTION(BlueprintCallable)
@@ -38,7 +40,7 @@ public:
 
     UFUNCTION(BlueprintCallable)
     int32 GetCurrentSampleCount();
-    
+
     UFUNCTION(BlueprintCallable)
     virtual int32 GetEstimatedSampleCount()
     {
@@ -49,7 +51,6 @@ public:
     UMTWayGraphSamplerConfig* GetActiveConfig() const;
 
 protected:
-
     virtual TOptional<FTransform> ValidateSampleLocation()
     {
         PURE_VIRTUAL(ValidateSampleLocation)
@@ -64,16 +65,9 @@ protected:
 
     virtual FMTSample CollectSampleMetadata()
     {
-
         PURE_VIRTUAL(CollectSampleMetadata)
         return {};
     };
-
-    virtual FJsonDomBuilder::FObject CollectConfigDescription()
-    {
-        PURE_VIRTUAL(ConfigDescription)
-        return {};
-    }
 
     bool ShouldUseToneCurve() const
     {
@@ -84,21 +78,34 @@ protected:
     {
         CurrentSampleCount++;
     }
-    
+
     void EndSampling();
 
     bool ShouldSampleOnBeginPlay() const;
 
     FString GetSessionDir() const;
 
-    TOptional<FTransform> ValidateGroundAndObstructions(const bool bIgnoreObstructions = false) const;
+    TOptional<FTransform>
+    ValidateGroundAndObstructions(const bool bIgnoreObstructions = false) const;
 
     void TogglePanoramaCapture(const bool bEnable)
     {
         bCapturePanorama = bEnable;
     }
 
-    virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+    virtual void TickComponent(
+        float DeltaTime,
+        ELevelTick TickType,
+        FActorComponentTickFunction* ThisTickFunction) override;
+
+    void ChangeCapture2DResolution(const FIntVector2& Resolution)
+    {
+        const auto CurrentFOV = Capture2D->GetCaptureComponent2D()->FOVAngle;
+        const auto FOVPerPixel = CurrentFOV / Resolution.X;
+        Capture2D->GetCaptureComponent2D()->TextureTarget->InitCustomFormat(
+            Resolution.X, Resolution.Y, EPixelFormat::PF_B8G8R8A8, false);
+        Capture2D->GetCaptureComponent2D()->FOVAngle = FOVPerPixel * Resolution.X;
+    }
 
 private:
     UPROPERTY()
@@ -109,12 +116,12 @@ private:
 
     UPROPERTY(EditAnywhere)
     bool bShouldSampleOnBeginPlay = false;
-    
+
     UPROPERTY(EditAnywhere)
     TObjectPtr<UMTWayGraphSamplerConfig> Config;
 
     int32 CurrentSampleCount;
-    
+
     bool bIsSampling = false;
 
     bool bCapturePanorama = true;
@@ -138,31 +145,30 @@ private:
         PreCaptureSample,
         CaptureSample,
     };
-    
+
     ENextSampleStep NextSampleStep = ENextSampleStep::InitSampling;
 
     int32 StepFrameSkips = 0;
-    
+
     UFUNCTION()
     void InitSampling();
 
     UFUNCTION()
     virtual void FindNextSampleLocation();
-    
+
     UFUNCTION()
     void PreCapture();
-    
+
     UFUNCTION()
     void CaptureSample();
-    
+
     void GotoNextSampleStep(const ENextSampleStep NextStep, const int32 StepWaitFrames = 0);
 
     void EnqueueCapture(const FMTCaptureImagePathPair& CaptureImagePathPair);
 
     void UpdateCesiumCameras();
-    
+
     FString GetImageDir();
-    
+
     void WaitForRenderThreadReadSurfaceAndWriteImages();
-    
 };

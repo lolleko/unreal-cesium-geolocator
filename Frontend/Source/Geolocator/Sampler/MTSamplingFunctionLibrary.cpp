@@ -177,12 +177,12 @@ UMTSamplingFunctionLibrary::PanoramaLocationsFromCosPlaceCSV(
     return Result;
 }
 
-TArray<UMTSamplingFunctionLibrary::FLocationPathPair>
+TArray<UMTSamplingFunctionLibrary::FExtraViewData>
 UMTSamplingFunctionLibrary::PredictionsLocationsFromFile(
     const FString& FilePath,
     const ACesiumGeoreference* Georeference)
 {
-    TArray<FLocationPathPair> Result;
+    TArray<FExtraViewData> Result;
 
     FString JSONRaw;
     FFileHelper::LoadFileToString(JSONRaw, *FilePath);
@@ -200,9 +200,10 @@ UMTSamplingFunctionLibrary::PredictionsLocationsFromFile(
         const auto& QueryInfoObject = QueryInfo->AsObject();
         const auto& QueryInfoPredications = QueryInfoObject->GetArrayField(TEXT("predictions"));
         const auto& QueryTempDatabaseDir = QueryInfoObject->GetStringField(TEXT("database_outdir"));
-        for (const auto& Prediction : QueryInfoPredications)
+        for (const auto& PredictionJsonValue : QueryInfoPredications)
         {
-            const auto PredictionPath = Prediction->AsString();
+            const auto PredictionObject = PredictionJsonValue->AsObject();
+            const auto PredictionPath = PredictionObject->GetStringField(TEXT("path"));
             const auto PredictionPathWithoutExtension = FPaths::GetBaseFilename(PredictionPath);
 
             // @ UTM_east @ UTM_north @ UTM_zone_number @ UTM_zone_letter @ latitude @ longitude @
@@ -215,8 +216,7 @@ UMTSamplingFunctionLibrary::PredictionsLocationsFromFile(
             const auto Lon = FCString::Atod(*PredictionPathParts[6]);
             const auto Alt = FCString::Atod(*PredictionPathParts[12]);
             const auto Heading =
-                FCString::Atod(*PredictionPathParts[9]);  // TODO hack because panroama cropping
-                                                          // outptus invalid headingangles
+                FCString::Atod(*PredictionPathParts[9]); 
             const auto Pitch = FCString::Atod(*PredictionPathParts[10]);
             const auto Roll = FCString::Atod(*PredictionPathParts[11]);
 
@@ -225,10 +225,14 @@ UMTSamplingFunctionLibrary::PredictionsLocationsFromFile(
             const FRotator HeadingRotation = FRotator{Pitch - 90, Heading - 90, Roll};
 
             const FTransform Transform{HeadingRotation, UnrealLocation};
+
+            const int32 Width = FCString::Atoi(*PredictionObject->GetStringField(TEXT("width")));
+            const int32 Height = FCString::Atoi(*PredictionObject->GetStringField(TEXT("height")));
             
             Result.Add(
                 {Transform,
-                 FPaths::Combine(QueryTempDatabaseDir, FPaths::GetBaseFilename(PredictionPath))});
+                 QueryTempDatabaseDir,
+                {Width, Height}});
         }
     }
 

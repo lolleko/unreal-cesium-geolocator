@@ -26,13 +26,11 @@ protected:
 
     virtual FMTSample CollectSampleMetadata() override;
 
-    virtual FJsonDomBuilder::FObject CollectConfigDescription() override;
-    
 private:
     UPROPERTY(EditAnywhere)
     FString TestPredictionFile;
     
-    TArray<UMTSamplingFunctionLibrary::FLocationPathPair> Locations;
+    TArray<UMTSamplingFunctionLibrary::FExtraViewData> Locations;
 
     int32 CurrentPredictionIndex = 0;
 
