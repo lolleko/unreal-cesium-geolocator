@@ -23,3 +23,8 @@ TArray<FColor>& AMTSceneCapture::GetMutableImageDataRef()
 {
     return ImageData;
 }
+
+FIntVector2& AMTSceneCapture::GetMutableImageSize()
+{
+    return ImageSize;
+}

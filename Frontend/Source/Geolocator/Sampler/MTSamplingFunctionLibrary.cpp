@@ -200,10 +200,15 @@ UMTSamplingFunctionLibrary::PredictionsLocationsFromFile(
         const auto& QueryInfoObject = QueryInfo->AsObject();
         const auto& QueryInfoPredications = QueryInfoObject->GetArrayField(TEXT("predictions"));
         const auto& QueryTempDatabaseDir = QueryInfoObject->GetStringField(TEXT("database_outdir"));
+        
+        const int32 Width = FCString::Atoi(*QueryInfoObject->GetStringField(TEXT("width")));
+        const int32 Height = FCString::Atoi(*QueryInfoObject->GetStringField(TEXT("height")));
+
+
+        
         for (const auto& PredictionJsonValue : QueryInfoPredications)
         {
-            const auto PredictionObject = PredictionJsonValue->AsObject();
-            const auto PredictionPath = PredictionObject->GetStringField(TEXT("path"));
+            const auto PredictionPath = PredictionJsonValue->AsString();
             const auto PredictionPathWithoutExtension = FPaths::GetBaseFilename(PredictionPath);
 
             // @ UTM_east @ UTM_north @ UTM_zone_number @ UTM_zone_letter @ latitude @ longitude @
@@ -225,9 +230,6 @@ UMTSamplingFunctionLibrary::PredictionsLocationsFromFile(
             const FRotator HeadingRotation = FRotator{Pitch - 90, Heading - 90, Roll};
 
             const FTransform Transform{HeadingRotation, UnrealLocation};
-
-            const int32 Width = FCString::Atoi(*PredictionObject->GetStringField(TEXT("width")));
-            const int32 Height = FCString::Atoi(*PredictionObject->GetStringField(TEXT("height")));
             
             Result.Add(
                 {Transform,

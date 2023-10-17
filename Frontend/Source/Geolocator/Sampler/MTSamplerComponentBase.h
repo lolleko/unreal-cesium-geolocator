@@ -100,11 +100,20 @@ protected:
 
     void ChangeCapture2DResolution(const FIntVector2& Resolution)
     {
-        const auto CurrentFOV = Capture2D->GetCaptureComponent2D()->FOVAngle;
-        const auto FOVPerPixel = CurrentFOV / Resolution.X;
+        Capture2D->GetCaptureComponent2D()->FOVAngle = 68;
+
+        // mimics torch.resize(512)
+        FIntVector2 ResizedResolution;
+        constexpr auto MinSize = 512;
+        if (Resolution.Y > Resolution.X)
+        {
+            ResizedResolution = {MinSize, MinSize * Resolution.Y / Resolution.X};
+        } else
+        {
+            ResizedResolution = {MinSize * Resolution.X / Resolution.Y, MinSize};
+        }
         Capture2D->GetCaptureComponent2D()->TextureTarget->InitCustomFormat(
-            Resolution.X, Resolution.Y, EPixelFormat::PF_B8G8R8A8, false);
-        Capture2D->GetCaptureComponent2D()->FOVAngle = FOVPerPixel * Resolution.X;
+            ResizedResolution.X, ResizedResolution.Y, EPixelFormat::PF_B8G8R8A8, false);
     }
 
 private:

@@ -24,7 +24,7 @@ void UMTExtraViewSamplerComponent::BeginPlay()
         CurrentPredictionIndex = INDEX_NONE;
         CurrentSampleGridCellIndex = 0;
         SampleGridRadius = 1;
-        SampleGridCellSize = FVector(1000, 1000, 200);
+        SampleGridCellSize = FVector(800, 800, 200);
         SampleGrid = TMTNDGridAccessor<3>({2*SampleGridRadius, 2*SampleGridRadius, 1});
 
         InitialLocationCount = Locations.Num();
@@ -79,7 +79,7 @@ TOptional<FTransform> UMTExtraViewSamplerComponent::SampleNextLocation()
     
     CurrentSampleGridCellIndex++;
 
-    ChangeCapture2DResolution(Locations[CurrentPredictionIndex].Resolution);
+    //ChangeCapture2DResolution(Locations[CurrentPredictionIndex].Resolution);
     
     return CellTransform;
 }
@@ -136,5 +136,5 @@ FMTSample UMTExtraViewSamplerComponent::CollectSampleMetadata()
     const auto HeadingAngle = FRotator::ClampAxis(EastSouthUp.Yaw + 90.);
     const auto Pitch = FRotator::ClampAxis(EastSouthUp.Pitch + 90.);
 
-    return {Locations[CurrentPredictionIndex].Path, {}, {}, HeadingAngle, Pitch, EastSouthUp.Roll, SampleLonLat, TEXT("")};
+    return {Locations[CurrentPredictionIndex].OutDir, {}, {}, HeadingAngle, Pitch, EastSouthUp.Roll, SampleLonLat, TEXT("")};
 }

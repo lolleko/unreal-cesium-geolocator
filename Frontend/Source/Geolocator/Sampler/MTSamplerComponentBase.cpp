@@ -84,7 +84,7 @@ void UMTSamplerComponentBase::InitSampling()
         false);
 
     Capture2D = GetWorld()->SpawnActor<AMTSceneCapture>();
-    Capture2D->GetCaptureComponent2D()->FOVAngle = 55.38;
+    Capture2D->GetCaptureComponent2D()->FOVAngle = 65;
     Capture2D->GetCaptureComponent2D()->TextureTarget = NewObject<UTextureRenderTarget2D>(this);
     Capture2D->GetCaptureComponent2D()->TextureTarget->bAutoGenerateMips = false;
     Capture2D->GetCaptureComponent2D()->TextureTarget->CompressionSettings =
@@ -334,6 +334,7 @@ void UMTSamplerComponentBase::CaptureSample()
 
                         const auto* Resource = Capture2D->GetCaptureComponent2D()
                                                    ->TextureTarget->GetRenderTargetResource();
+                        Capture2D->GetMutableImageSize() = {(int32)Resource->GetSizeX(), (int32)Resource->GetSizeY()};
                         RHICmdList.ReadSurfaceData(
                             Resource->GetRenderTargetTexture(),
                             FIntRect(0, 0, Resource->GetSizeX(), Resource->GetSizeY()),
@@ -423,8 +424,7 @@ void UMTSamplerComponentBase::WaitForRenderThreadReadSurfaceAndWriteImages()
                 auto ImageWriteFuture = UMTSamplingFunctionLibrary::WritePixelBufferToFile(
                     CaptureData.AbsoluteImagePath,
                     Capture->GetMutableImageDataRef(),
-                    {Capture->GetCaptureComponent2D()->TextureTarget->SizeX,
-                     Capture->GetCaptureComponent2D()->TextureTarget->SizeY});
+                    Capture2D->GetMutableImageSize());
                 ImageWriteTaskFutures.Emplace(MoveTemp(ImageWriteFuture));
             }
         }

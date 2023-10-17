@@ -17,8 +17,13 @@ public:
 
     virtual TArray<FColor>& GetMutableImageDataRef();
 
+    virtual FIntVector2& GetMutableImageSize();
+
 private:
     // In the rare case that our capture gets deleted while beeing used on render thread
     UPROPERTY(Transient)
     TArray<FColor> ImageData;
+
+    UPROPERTY(Transient)
+    FIntVector2 ImageSize;
 };
