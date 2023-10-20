@@ -1,0 +1,24 @@
+{
+  "name": "berlintileloader",
+  "version": "1.0.0",
+  "description": "",
+  "bin": "./dist/index.js",
+  "main": "./dist/index.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "3d-tiles-tools": "github:CesiumGS/3d-tiles-tools",
+    "gltf-pipeline": "^3.0.5",
+    "got": "^12.5.2",
+    "p-limit": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^18.11.0",
+    "caxa": "^3.0.1",
+    "ts-node": "^10.9.1"
+  }
+}
