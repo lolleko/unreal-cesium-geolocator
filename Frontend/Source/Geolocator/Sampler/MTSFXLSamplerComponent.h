@@ -10,6 +10,14 @@
 
 #include "MTSFXLSamplerComponent.generated.h"
 
+UENUM()
+enum class EMTDatasetType
+{
+    SFXL_CSV,
+    PITTS_TXT,
+    TOKYO_TXT,
+};
+
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class GEOLOCATOR_API UMTSFXLSamplerComponent : public UMTSamplerComponentBase
 {
@@ -30,6 +38,9 @@ protected:
 private:
     UPROPERTY(EditAnywhere)
     FString FilePath;
+
+    UPROPERTY(EditAnywhere)
+    EMTDatasetType DatasetType;
 
     TArray<UMTSamplingFunctionLibrary::FLocationPathPair> Locations;
 

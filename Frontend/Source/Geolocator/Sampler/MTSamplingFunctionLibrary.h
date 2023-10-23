@@ -48,6 +48,8 @@ public:
     };
     static TArray<FLocationPathPair> PanoramaLocationsFromCosPlaceCSV(const FString& FilePath, const ACesiumGeoreference* Georeference);
 
+    static TArray<FLocationPathPair> SliceLocationsFromPittsTXT(const FString& FilePath, const ACesiumGeoreference* Georeference);
+
     struct FExtraViewData
     {
         FTransform Location;

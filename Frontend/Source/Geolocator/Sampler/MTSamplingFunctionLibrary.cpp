@@ -160,7 +160,7 @@ UMTSamplingFunctionLibrary::PanoramaLocationsFromCosPlaceCSV(
         const auto Path = CSVRowEntries[0];
         const auto Lat = FCString::Atod(*CSVRowEntries[5]);
         const auto Lon = FCString::Atod(*CSVRowEntries[6]);
-        const auto Alt = FCString::Atod(*CSVRowEntries[11]) - 28;
+        const auto Alt = FCString::Atod(*CSVRowEntries[11]) - 27.5;
         const auto Heading = FCString::Atod(*CSVRowEntries[8]);
         const auto Pitch = FCString::Atod(*CSVRowEntries[12]);
         const auto Roll = FCString::Atod(*CSVRowEntries[13]);
@@ -172,6 +172,57 @@ UMTSamplingFunctionLibrary::PanoramaLocationsFromCosPlaceCSV(
         const FTransform Transform{HeadingRotation, UnrealLocation};
 
         Result.Add({Transform, Path});
+    }
+
+    return Result;
+}
+
+TArray<UMTSamplingFunctionLibrary::FLocationPathPair>
+UMTSamplingFunctionLibrary::SliceLocationsFromPittsTXT(
+    const FString& FilePath,
+    const ACesiumGeoreference* Georeference)
+{
+    TArray<FString> CSVLines;
+    FFileHelper::LoadFileToStringArray(CSVLines, *FilePath);
+
+    TArray<FLocationPathPair> Result;
+
+    for (const auto& Line : MakeArrayView(CSVLines).Slice(1, CSVLines.Num() - 1))
+    {
+        if (!Line.Contains(TEXT("database")))
+        {
+            continue;
+        }
+        
+        const auto PathWithoutExtension = FPaths::GetBaseFilename(Line);
+
+        // @ UTM_east @ UTM_north @ UTM_zone_number @ UTM_zone_letter @ latitude @ longitude @
+        // pano_id @ tile_num @ heading @ pitch @ roll @ height @ timestamp @ note @ extension
+        TArray<FString> PathParts;
+        PathWithoutExtension.ParseIntoArray(PathParts, TEXT("@"), false);
+
+        // get long lat alt heading pitch roll
+        const auto Lat = FCString::Atod(*PathParts[5]);
+        const auto Lon = FCString::Atod(*PathParts[6]);
+
+        const FVector UnrealLocation =
+            Georeference->TransformLongitudeLatitudeHeightPositionToUnreal(FVector{Lon, Lat, 0.});
+
+        const auto PitchYawString = PathParts[14];
+        FString PitchString;
+        FString YawString;
+        PitchYawString.Split(TEXT("_"), &PitchString, &YawString);
+        PitchString.RemoveFromStart(TEXT("pitch"));
+        YawString.RemoveFromStart(TEXT("yaw"));
+        
+        const auto Pitch = FCString::Atoi(*PitchString) == 1 ? 4 : 26.5;
+        const auto Yaw = FCString::Atoi(*YawString) * 30.;
+        
+        FRotator HeadingRotation = FRotator{Pitch, Yaw - 180., 0.};
+        
+        const FTransform Transform{HeadingRotation, UnrealLocation};
+        
+        Result.Add({Transform, Line});
     }
 
     return Result;
@@ -200,16 +251,15 @@ UMTSamplingFunctionLibrary::PredictionsLocationsFromFile(
         const auto& QueryInfoObject = QueryInfo->AsObject();
         const auto& QueryInfoPredications = QueryInfoObject->GetArrayField(TEXT("predictions"));
         const auto& QueryTempDatabaseDir = QueryInfoObject->GetStringField(TEXT("database_outdir"));
-        
+
         const int32 Width = FCString::Atoi(*QueryInfoObject->GetStringField(TEXT("width")));
         const int32 Height = FCString::Atoi(*QueryInfoObject->GetStringField(TEXT("height")));
 
-
-        
         for (const auto& PredictionJsonValue : QueryInfoPredications)
         {
             const auto PredictionPath = PredictionJsonValue->AsString();
-            const auto PredictionPathWithoutExtension = FPaths::GetBaseFilename(PredictionPath);
+            
+            const auto PredictionPathWithoutExtension = FPaths::GetBaseFilename(FilePath);
 
             // @ UTM_east @ UTM_north @ UTM_zone_number @ UTM_zone_letter @ latitude @ longitude @
             // pano_id @ tile_num @ heading @ pitch @ roll @ height @ timestamp @ note @ extension
@@ -220,21 +270,18 @@ UMTSamplingFunctionLibrary::PredictionsLocationsFromFile(
             const auto Lat = FCString::Atod(*PredictionPathParts[5]);
             const auto Lon = FCString::Atod(*PredictionPathParts[6]);
             const auto Alt = FCString::Atod(*PredictionPathParts[12]);
-            const auto Heading =
-                FCString::Atod(*PredictionPathParts[9]); 
-            const auto Pitch = FCString::Atod(*PredictionPathParts[10]);
-            const auto Roll = FCString::Atod(*PredictionPathParts[11]);
+            const auto Heading = FCString::Atod(*PredictionPathParts[9]);
 
             const FVector UnrealLocation =
                 Georeference->TransformLongitudeLatitudeHeightPositionToUnreal(FVector{Lon, Lat, Alt});
-            const FRotator HeadingRotation = FRotator{Pitch - 90, Heading - 90, Roll};
 
+            const auto Pitch = FCString::Atod(*PredictionPathParts[10]);
+            const auto Roll = FCString::Atod(*PredictionPathParts[11]);
+            FRotator HeadingRotation = FRotator{Pitch - 90, Heading - 90, Roll};
+        
             const FTransform Transform{HeadingRotation, UnrealLocation};
             
-            Result.Add(
-                {Transform,
-                 QueryTempDatabaseDir,
-                {Width, Height}});
+            Result.Add({Transform, QueryTempDatabaseDir, {Width, Height}});
         }
     }
 

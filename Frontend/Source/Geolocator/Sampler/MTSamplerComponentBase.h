@@ -98,20 +98,27 @@ protected:
         ELevelTick TickType,
         FActorComponentTickFunction* ThisTickFunction) override;
 
-    void ChangeCapture2DResolution(const FIntVector2& Resolution)
+    void ChangeCapture2DResolution(const FIntVector2& Resolution, const double FOVAngle = 65., bool bResizeTo512 = false)
     {
         Capture2D->GetCaptureComponent2D()->FOVAngle = 68;
 
         // mimics torch.resize(512)
-        FIntVector2 ResizedResolution;
-        constexpr auto MinSize = 512;
-        if (Resolution.Y > Resolution.X)
+        FIntVector2 ResizedResolution = Resolution;
+
+        if (bResizeTo512)
         {
-            ResizedResolution = {MinSize, MinSize * Resolution.Y / Resolution.X};
-        } else
-        {
-            ResizedResolution = {MinSize * Resolution.X / Resolution.Y, MinSize};
+            constexpr auto MinSize = 512;
+            if (Resolution.Y > Resolution.X)
+            {
+                ResizedResolution = {MinSize, MinSize * Resolution.Y / Resolution.X};
+            }
+            else
+            {
+                ResizedResolution = {MinSize * Resolution.X / Resolution.Y, MinSize};
+            }
         }
+
+        Capture2D->GetCaptureComponent2D()->FOVAngle = FOVAngle;
         Capture2D->GetCaptureComponent2D()->TextureTarget->InitCustomFormat(
             ResizedResolution.X, ResizedResolution.Y, EPixelFormat::PF_B8G8R8A8, false);
     }
@@ -130,6 +137,8 @@ private:
     TObjectPtr<UMTWayGraphSamplerConfig> Config;
 
     int32 CurrentSampleCount;
+
+    int32 CapturedImageCount;
 
     bool bIsSampling = false;
 

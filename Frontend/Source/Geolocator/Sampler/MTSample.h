@@ -47,4 +47,6 @@ struct GEOLOCATOR_API FMTSample
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FString AbsoluteImagePath;
+
+    int32 ImageID;
 };

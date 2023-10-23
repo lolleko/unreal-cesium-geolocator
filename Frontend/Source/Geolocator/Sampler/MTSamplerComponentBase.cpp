@@ -25,6 +25,37 @@ UMTSamplerComponentBase::UMTSamplerComponentBase()
 void UMTSamplerComponentBase::BeginPlay()
 {
     Super::BeginPlay();
+    
+    PanoramaCapture = GetWorld()->SpawnActor<AMTSceneCaptureCube>();
+    PanoramaCapture->GetCaptureComponentCube()->TextureTarget =
+        NewObject<UTextureRenderTargetCube>(this);
+    PanoramaCapture->GetCaptureComponentCube()->TextureTarget->CompressionSettings =
+        TextureCompressionSettings::TC_Default;
+    PanoramaCapture->GetCaptureComponentCube()->TextureTarget->TargetGamma = 2.2F;
+    PanoramaCapture->GetCaptureComponentCube()->TextureTarget->Init(
+        GetActiveConfig()->PanoramaWidth / 2, EPixelFormat::PF_B8G8R8A8);
+    PanoramaCapture->GetCaptureComponentCube()->ShowFlags.SetToneCurve(ShouldUseToneCurve());
+
+    PanoramaCapture->GetRenderTargetLongLat()->InitCustomFormat(
+        PanoramaCapture->GetCaptureComponentCube()->TextureTarget->SizeX * 2,
+        PanoramaCapture->GetCaptureComponentCube()->TextureTarget->SizeX,
+        EPixelFormat::PF_B8G8R8A8,
+        false);
+
+    Capture2D = GetWorld()->SpawnActor<AMTSceneCapture>();
+    Capture2D->GetCaptureComponent2D()->FOVAngle = 65   ;
+    Capture2D->GetCaptureComponent2D()->TextureTarget = NewObject<UTextureRenderTarget2D>(this);
+    Capture2D->GetCaptureComponent2D()->TextureTarget->bAutoGenerateMips = false;
+    Capture2D->GetCaptureComponent2D()->TextureTarget->CompressionSettings =
+        TextureCompressionSettings::TC_Default;
+    Capture2D->GetCaptureComponent2D()->TextureTarget->AddressX = TextureAddress::TA_Clamp;
+    Capture2D->GetCaptureComponent2D()->TextureTarget->AddressY = TextureAddress::TA_Clamp;
+    Capture2D->GetCaptureComponent2D()->TextureTarget->RenderTargetFormat = RTF_RGBA8;
+    Capture2D->GetCaptureComponent2D()->TextureTarget->TargetGamma = 2.2F;
+    Capture2D->GetCaptureComponent2D()->TextureTarget->bGPUSharedFlag = true;
+    Capture2D->GetCaptureComponent2D()->ShowFlags.SetToneCurve(ShouldUseToneCurve());
+    Capture2D->GetCaptureComponent2D()->TextureTarget->InitCustomFormat(
+        512, 512, EPixelFormat::PF_B8G8R8A8, false);
 }
 
 void UMTSamplerComponentBase::BeginSampling()
@@ -35,6 +66,7 @@ void UMTSamplerComponentBase::BeginSampling()
     }
 
     bIsSampling = true;
+    CurrentSampleCount = 0;
     CurrentSampleCount = 0;
 
     GotoNextSampleStep(ENextSampleStep::InitSampling, 4);
@@ -66,37 +98,6 @@ void UMTSamplerComponentBase::InitSampling()
         Tileset->SetShouldIgnorePlayerCamera(true);
         Tileset->PlayMovieSequencer();
     }
-
-    PanoramaCapture = GetWorld()->SpawnActor<AMTSceneCaptureCube>();
-    PanoramaCapture->GetCaptureComponentCube()->TextureTarget =
-        NewObject<UTextureRenderTargetCube>(this);
-    PanoramaCapture->GetCaptureComponentCube()->TextureTarget->CompressionSettings =
-        TextureCompressionSettings::TC_Default;
-    PanoramaCapture->GetCaptureComponentCube()->TextureTarget->TargetGamma = 2.2F;
-    PanoramaCapture->GetCaptureComponentCube()->TextureTarget->Init(
-        GetActiveConfig()->PanoramaWidth / 2, EPixelFormat::PF_B8G8R8A8);
-    PanoramaCapture->GetCaptureComponentCube()->ShowFlags.SetToneCurve(ShouldUseToneCurve());
-
-    PanoramaCapture->GetRenderTargetLongLat()->InitCustomFormat(
-        PanoramaCapture->GetCaptureComponentCube()->TextureTarget->SizeX * 2,
-        PanoramaCapture->GetCaptureComponentCube()->TextureTarget->SizeX,
-        EPixelFormat::PF_B8G8R8A8,
-        false);
-
-    Capture2D = GetWorld()->SpawnActor<AMTSceneCapture>();
-    Capture2D->GetCaptureComponent2D()->FOVAngle = 65;
-    Capture2D->GetCaptureComponent2D()->TextureTarget = NewObject<UTextureRenderTarget2D>(this);
-    Capture2D->GetCaptureComponent2D()->TextureTarget->bAutoGenerateMips = false;
-    Capture2D->GetCaptureComponent2D()->TextureTarget->CompressionSettings =
-        TextureCompressionSettings::TC_Default;
-    Capture2D->GetCaptureComponent2D()->TextureTarget->AddressX = TextureAddress::TA_Clamp;
-    Capture2D->GetCaptureComponent2D()->TextureTarget->AddressY = TextureAddress::TA_Clamp;
-    Capture2D->GetCaptureComponent2D()->TextureTarget->RenderTargetFormat = RTF_RGBA8;
-    Capture2D->GetCaptureComponent2D()->TextureTarget->TargetGamma = 2.2F;
-    Capture2D->GetCaptureComponent2D()->TextureTarget->bGPUSharedFlag = true;
-    Capture2D->GetCaptureComponent2D()->ShowFlags.SetToneCurve(ShouldUseToneCurve());
-    Capture2D->GetCaptureComponent2D()->TextureTarget->InitCustomFormat(
-        512, 512, EPixelFormat::PF_B8G8R8A8, false);
 
     for (int32 I = 0; I < CesiumPanoramaLoaderCameraIDs.Num(); ++I)
     {
@@ -229,21 +230,21 @@ namespace
         //const auto TimeStamp = FDateTime::UtcNow().ToString(TEXT("%Y%m%d_%H%M%S"));
 
         return FString::Printf(
-            TEXT("@%.2f@%.2f@%d@%s@%.5f@%.5f@%s@%s@%.2f@%.2f@%.2f@%.2f@%s@art_prob_%.4f@.jpg"),
+            TEXT("@%.2f@%.2f@%d@%s@%.5f@%.5f@%d@%s@%.2f@%.2f@%.2f@%.2f@%s@art_prob_%.4f@.jpg"),
             UTMEast,
             UTMNorth,
             ZoneNumber,
             *FString().AppendChar(ZoneLetter),
-            Sample.LonLatAltitude.Y,
-            Sample.LonLatAltitude.X,
+            Sample.LonLatAltitude.Y + 0.,
+            Sample.LonLatAltitude.X + 0.,
+            Sample.ImageID,
             TEXT(""),
-            TEXT(""),
-            Sample.HeadingAngle,
-            Sample.Pitch,
-            Sample.Roll,
-            Sample.LonLatAltitude.Z,
+            Sample.HeadingAngle + 0.,
+            Sample.Pitch + 0.,
+            Sample.Roll + 0.,
+            Sample.LonLatAltitude.Z + 0.,
             TEXT(""), // TimeStamp
-            Sample.ArtifactProbability);
+            Sample.ArtifactProbability + 0.);
     }
 }  // namespace
 
@@ -258,6 +259,8 @@ void UMTSamplerComponentBase::CaptureSample()
     WaitForRenderThreadReadSurfaceAndWriteImages();
 
     FMTSample Sample = CollectSampleMetadata();
+    Sample.ImageID = CapturedImageCount;
+    CapturedImageCount++;
 
     FString ImageDir = Sample.ImageDir.IsSet() ? Sample.ImageDir.GetValue() : GetImageDir();
 
