@@ -38,9 +38,13 @@ private:
     
     TMTNDGridAccessor<3> SampleGrid;
 
+    TMap<FString, TArray<FString>> PredictionToExtraViews;
+
     FVector SampleGridCellSize;
 
     int32 CurrentSampleGridCellIndex;
     
     int32 InitialLocationCount = 0;
+
+    void WriteToImageListTXT(const FString& ImageListTXTPath, const FString& ImagePath);
 };

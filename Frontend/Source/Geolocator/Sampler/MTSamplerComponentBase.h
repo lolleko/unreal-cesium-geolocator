@@ -123,6 +123,8 @@ protected:
             ResizedResolution.X, ResizedResolution.Y, EPixelFormat::PF_B8G8R8A8, false);
     }
 
+    FString CreateImagePathForSample(const FMTSample& Sample);
+
 private:
     UPROPERTY()
     TObjectPtr<AMTSceneCaptureCube> PanoramaCapture;

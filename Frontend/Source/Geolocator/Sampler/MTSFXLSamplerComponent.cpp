@@ -23,7 +23,8 @@ void UMTSFXLSamplerComponent::BeginPlay()
                     FilePath, ACesiumGeoreference::GetDefaultGeoreference(GetWorld()));
                 break;
             case EMTDatasetType::TOKYO_TXT:
-                // TODO
+                Locations = UMTSamplingFunctionLibrary::SliceLocationsFromTokyoTXT(
+                    FilePath, ACesiumGeoreference::GetDefaultGeoreference(GetWorld()));
                 break;
         }
 

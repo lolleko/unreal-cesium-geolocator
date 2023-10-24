@@ -9,6 +9,7 @@
 #include "CubemapUnwrapUtils.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "Engine/TextureRenderTargetCube.h"
+#include "MTSample.h"
 #include "UObject/Object.h"
 
 #include "MTSamplingFunctionLibrary.generated.h"
@@ -50,13 +51,19 @@ public:
 
     static TArray<FLocationPathPair> SliceLocationsFromPittsTXT(const FString& FilePath, const ACesiumGeoreference* Georeference);
 
+    static TArray<FLocationPathPair> SliceLocationsFromTokyoTXT(const FString& FilePath, const ACesiumGeoreference* Georeference);
+
     struct FExtraViewData
     {
         FTransform Location;
-        FString OutDir;
+        FString PredictionFileName;
+        FString SharedViewOutDir;
+        FString QueryTempDatabaseImageList;
         FIntVector2 Resolution;
     };
     static TArray<FExtraViewData> PredictionsLocationsFromFile(const FString& FilePath, const ACesiumGeoreference* Georeference);
+
+    static FString CreateImageNameFromSample(const FMTSample& Sample);
 
 private:
 	static FRandomStream RandomStream;

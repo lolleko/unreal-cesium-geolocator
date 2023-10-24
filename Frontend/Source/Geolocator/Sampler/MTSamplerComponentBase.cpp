@@ -209,45 +209,6 @@ void UMTSamplerComponentBase::PreCapture()
     GotoNextSampleStep(ENextSampleStep::CaptureSample, 1);
 }
 
-namespace
-{
-    FString CreateImageNameFromSample(const FMTSample& Sample)
-    {
-        // @ UTM_east @ UTM_north @ UTM_zone_number @ UTM_zone_letter @ latitude @ longitude @
-        // pano_id @ tile_num @ heading @ pitch @ roll @ height @ timestamp @ note @ extension
-        double UTMEast;
-        double UTMNorth;
-        TCHAR ZoneLetter;
-        int32 ZoneNumber;
-        UTM::LLtoUTM(
-            Sample.LonLatAltitude.X,
-            Sample.LonLatAltitude.Y,
-            UTMNorth,
-            UTMEast,
-            ZoneNumber,
-            ZoneLetter);
-
-        //const auto TimeStamp = FDateTime::UtcNow().ToString(TEXT("%Y%m%d_%H%M%S"));
-
-        return FString::Printf(
-            TEXT("@%.2f@%.2f@%d@%s@%.5f@%.5f@%d@%s@%.2f@%.2f@%.2f@%.2f@%s@art_prob_%.4f@.jpg"),
-            UTMEast,
-            UTMNorth,
-            ZoneNumber,
-            *FString().AppendChar(ZoneLetter),
-            Sample.LonLatAltitude.Y + 0.,
-            Sample.LonLatAltitude.X + 0.,
-            Sample.ImageID,
-            TEXT(""),
-            Sample.HeadingAngle + 0.,
-            Sample.Pitch + 0.,
-            Sample.Roll + 0.,
-            Sample.LonLatAltitude.Z + 0.,
-            TEXT(""), // TimeStamp
-            Sample.ArtifactProbability + 0.);
-    }
-}  // namespace
-
 void UMTSamplerComponentBase::CaptureSample()
 {
     TRACE_CPUPROFILER_EVENT_SCOPE(MTSampling::CaptureSample);
@@ -259,15 +220,10 @@ void UMTSamplerComponentBase::CaptureSample()
     WaitForRenderThreadReadSurfaceAndWriteImages();
 
     FMTSample Sample = CollectSampleMetadata();
-    Sample.ImageID = CapturedImageCount;
+    
+    const auto AbsoluteImageFilePath = CreateImagePathForSample(Sample);
+
     CapturedImageCount++;
-
-    FString ImageDir = Sample.ImageDir.IsSet() ? Sample.ImageDir.GetValue() : GetImageDir();
-
-    FString ImageName =
-        Sample.ImageName.IsSet() ? Sample.ImageName.GetValue() : CreateImageNameFromSample(Sample);
-
-    const auto AbsoluteImageFilePath = FPaths::Combine(ImageDir, ImageName);
 
     // Assume we are resuming previous run and don't overwrite image or metadata
     if (FPaths::FileExists(AbsoluteImageFilePath))
@@ -603,4 +559,18 @@ void UMTSamplerComponentBase::TickComponent(
         default:
             check(false);
     }
+}
+
+FString UMTSamplerComponentBase::CreateImagePathForSample(const FMTSample& Sample)
+{
+    FMTSample SampleWithImageID  = Sample;
+    SampleWithImageID.ImageID = CapturedImageCount;
+
+    FString ImageDir = SampleWithImageID.ImageDir.IsSet() ? SampleWithImageID.ImageDir.GetValue() : GetImageDir();
+
+    FString ImageName = SampleWithImageID.ImageName.IsSet()
+                            ? SampleWithImageID.ImageName.GetValue()
+                            : UMTSamplingFunctionLibrary::CreateImageNameFromSample(SampleWithImageID);
+
+    return FPaths::Combine(ImageDir, ImageName);
 }
